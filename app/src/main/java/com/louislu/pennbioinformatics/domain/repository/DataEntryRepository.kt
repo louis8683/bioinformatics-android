@@ -5,9 +5,9 @@ import kotlinx.coroutines.flow.Flow
 
 interface DataEntryRepository {
 
-    suspend fun upsert(entry: DataEntry)
+    suspend fun upsert(entry: DataEntry): Long
 
-    fun getAllBySession(sessionId: String): Flow<List<DataEntry>>
+    fun getAllBySession(localSessionId: Long? = null, remoteSessionId: Long? = null): Flow<List<DataEntry>>
 
     fun getOngoing(): Flow<List<DataEntry>>
 

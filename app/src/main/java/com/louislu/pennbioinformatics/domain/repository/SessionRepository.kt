@@ -5,11 +5,11 @@ import kotlinx.coroutines.flow.Flow
 
 interface SessionRepository {
 
-    fun getAllSessions(): Flow<List<Session>>
+    fun getAll(): Flow<List<Session>>
 
-    fun getSessionById(sessionId: Long): Flow<Session?>
+    fun getById(sessionId: Long): Flow<Session?>
 
-    suspend fun createSession(session: Session)
+    suspend fun upsert(session: Session): Long
 
     suspend fun syncPendingUploads()
 }

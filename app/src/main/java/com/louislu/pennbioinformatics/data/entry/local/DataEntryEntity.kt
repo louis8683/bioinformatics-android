@@ -3,6 +3,7 @@ package com.louislu.pennbioinformatics.data.entry.local
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.louislu.pennbioinformatics.domain.model.DataEntry
 
 @Entity(
     tableName = "data_entries",
@@ -25,4 +26,23 @@ data class DataEntryEntity(
     // local flags
     val ongoing: Boolean,
     val pendingUpload: Boolean
-)
+) {
+    fun toDomainModel(): DataEntry {
+        return DataEntry(
+            localId = localId,
+            serverId = serverId,
+            userId = userId,
+            localSessionId = localSessionId,
+            remoteSessionId = remoteSessionId,
+            timestamp = timestamp,
+            latitude = latitude,
+            longitude = longitude,
+            coLevel = coLevel,
+            pm25level = pm25level,
+            temperature = temperature,
+            humidity = humidity,
+            ongoing = ongoing,
+            pendingUpload = pendingUpload
+        )
+    }
+}

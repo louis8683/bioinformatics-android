@@ -52,9 +52,17 @@ android {
         kotlinCompilerExtensionVersion = "1.5.1"
     }
     packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+//        resources {
+//            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+//        }
+
+        resources.excludes.addAll(
+            listOf(
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE-notice.md",
+                "/META-INF/{AL2.0,LGPL2.1}"
+        )
+        )
     }
     composeCompiler {
         reportsDestination = layout.buildDirectory.dir("compose_compiler")
@@ -75,6 +83,7 @@ dependencies {
 
     // Hilt
     implementation(libs.hilt.android)
+    implementation(libs.androidx.rules)
     ksp(libs.hilt.android.compiler)
 
     // GSON
@@ -85,6 +94,12 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
 
+    // BLE
+    implementation("no.nordicsemi.android:ble:2.9.0")
+
+    // Timber
+    implementation("com.jakewharton.timber:timber:5.0.1")
+    
     // Test
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -93,6 +108,13 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    testImplementation("org.robolectric:robolectric:4.8")
+
+    androidTestImplementation("io.mockk:mockk-android:1.13.17")
+    androidTestImplementation("io.mockk:mockk-agent:1.13.17")
+
+
 
     // Turbine
     androidTestImplementation("app.cash.turbine:turbine:1.2.0")
