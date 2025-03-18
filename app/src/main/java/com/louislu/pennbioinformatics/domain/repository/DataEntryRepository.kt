@@ -9,7 +9,9 @@ interface DataEntryRepository {
 
     fun getAllBySession(localSessionId: Long? = null, remoteSessionId: Long? = null): Flow<List<DataEntry>>
 
-    fun getOngoing(): Flow<List<DataEntry>>
+//    fun getOngoing(): Flow<List<DataEntry>>
+
+    fun getLatestBySession(localSessionId: Long? = null, remoteSessionId: Long? = null): Flow<DataEntry?>
 
     suspend fun syncPendingUploads()
 }

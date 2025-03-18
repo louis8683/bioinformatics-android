@@ -27,6 +27,9 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // AppAuth
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.louislu.pennbioinformatics"
     }
 
     buildTypes {
@@ -81,9 +84,13 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
+    // Compose navigation
+    implementation("androidx.navigation:navigation-compose:2.8.9")
+
     // Hilt
     implementation(libs.hilt.android)
     implementation(libs.androidx.rules)
+    implementation(libs.play.services.location)
     ksp(libs.hilt.android.compiler)
 
     // GSON
@@ -99,6 +106,15 @@ dependencies {
 
     // Timber
     implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // OAuth 2.0 + OIDC
+    implementation("net.openid:appauth:0.11.1")
+
+    // Browser
+    implementation("androidx.browser:browser:1.5.0")
+
+    // OKIO to read config from JSON
+    implementation("com.squareup.okio:okio:3.10.2")
     
     // Test
     testImplementation(libs.junit)

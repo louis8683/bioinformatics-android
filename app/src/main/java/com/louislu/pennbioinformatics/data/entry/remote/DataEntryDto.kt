@@ -36,7 +36,7 @@ data class DataEntryDto(
             humidity = humidity,
 
             // local flags
-            ongoing = false,
+//            ongoing = false,
             pendingUpload = false
         )
     }

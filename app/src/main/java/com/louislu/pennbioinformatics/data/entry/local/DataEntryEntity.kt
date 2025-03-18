@@ -16,15 +16,15 @@ data class DataEntryEntity(
     val localSessionId: Long?,
     val remoteSessionId: Long?, // No foreign key, just a reference
     val timestamp: Long, // Epoch time
-    val latitude: Double,
-    val longitude: Double,
+    val latitude: Double?,
+    val longitude: Double?,
     val coLevel: Float?,
     val pm25level: Float?,
     val temperature: Float?,
     val humidity: Float?,
 
     // local flags
-    val ongoing: Boolean,
+//    val ongoing: Boolean,
     val pendingUpload: Boolean
 ) {
     fun toDomainModel(): DataEntry {
@@ -41,7 +41,7 @@ data class DataEntryEntity(
             pm25level = pm25level,
             temperature = temperature,
             humidity = humidity,
-            ongoing = ongoing,
+//            ongoing = ongoing,
             pendingUpload = pendingUpload
         )
     }

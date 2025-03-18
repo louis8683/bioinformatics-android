@@ -17,7 +17,7 @@ fun DataEntry.toEntity(): DataEntryEntity {
         pm25level = pm25level,
         temperature = temperature,
         humidity = humidity,
-        ongoing = ongoing,
+//        ongoing = ongoing,
         pendingUpload = pendingUpload
     )
 }

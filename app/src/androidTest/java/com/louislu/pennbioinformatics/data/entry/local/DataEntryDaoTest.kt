@@ -280,75 +280,75 @@ class DataEntryDaoTest {
 
     /*** getAllOngoing() Tests ***/
 
-    @Test
-    fun getAllOngoing_WhenNoEntriesExist_ShouldReturnEmptyList() = runBlocking {
-        // Act
-        val result = dataEntryDao.getAllOngoing().first()
-
-        // Assert
-        Assert.assertTrue(result.isEmpty())
-    }
-
-    @Test
-    fun getAllOngoing_WhenOneEntryExists_ShouldReturnCorrectResult() = runBlocking {
-        // Arrange
-        val entry = sampleDataEntry(ongoing = true)
-        dataEntryDao.upsert(entry)
-
-        // Act
-        val result = dataEntryDao.getAllOngoing().first()
-
-        // Assert
-        Assert.assertEquals(1, result.size)
-        Assert.assertTrue(result.first().ongoing)
-    }
-
-    @Test
-    fun getAllOngoing_WhenMultipleEntriesExist_ShouldReturnAllOngoingEntries() = runBlocking {
-        // Arrange
-        val entry1 = sampleDataEntry(ongoing = true)
-        val entry2 = sampleDataEntry(ongoing = true)
-        dataEntryDao.upsert(entry1)
-        dataEntryDao.upsert(entry2)
-
-        // Act
-        val result = dataEntryDao.getAllOngoing().first()
-
-        // Assert
-        Assert.assertEquals(2, result.size)
-        Assert.assertTrue(result.all { it.ongoing })
-    }
-
-    @Test
-    fun getAllOngoing_WhenSomeEntriesAreOngoing_ShouldReturnOnlyOngoingOnes() = runBlocking {
-        // Arrange
-        val ongoingEntry = sampleDataEntry(ongoing = true)
-        val nonOngoingEntry = sampleDataEntry(ongoing = false)
-        dataEntryDao.upsert(ongoingEntry)
-        dataEntryDao.upsert(nonOngoingEntry)
-
-        // Act
-        val result = dataEntryDao.getAllOngoing().first()
-
-        // Assert
-        Assert.assertEquals(1, result.size)
-        Assert.assertTrue(result.first().ongoing)
-    }
-
-    @Test
-    fun getAllOngoing_WhenAllEntriesAreNonOngoing_ShouldReturnEmptyList() = runBlocking {
-        // Arrange
-        val entry1 = sampleDataEntry(ongoing = false)
-        val entry2 = sampleDataEntry(ongoing = false)
-        dataEntryDao.upsert(entry1)
-        dataEntryDao.upsert(entry2)
-
-        // Act
-        val result = dataEntryDao.getAllOngoing().first()
-
-        // Assert
-        Assert.assertTrue(result.isEmpty())
-    }
+//    @Test
+//    fun getAllOngoing_WhenNoEntriesExist_ShouldReturnEmptyList() = runBlocking {
+//        // Act
+//        val result = dataEntryDao.getAllOngoing().first()
+//
+//        // Assert
+//        Assert.assertTrue(result.isEmpty())
+//    }
+//
+//    @Test
+//    fun getAllOngoing_WhenOneEntryExists_ShouldReturnCorrectResult() = runBlocking {
+//        // Arrange
+//        val entry = sampleDataEntry(ongoing = true)
+//        dataEntryDao.upsert(entry)
+//
+//        // Act
+//        val result = dataEntryDao.getAllOngoing().first()
+//
+//        // Assert
+//        Assert.assertEquals(1, result.size)
+//        Assert.assertTrue(result.first().ongoing)
+//    }
+//
+//    @Test
+//    fun getAllOngoing_WhenMultipleEntriesExist_ShouldReturnAllOngoingEntries() = runBlocking {
+//        // Arrange
+//        val entry1 = sampleDataEntry(ongoing = true)
+//        val entry2 = sampleDataEntry(ongoing = true)
+//        dataEntryDao.upsert(entry1)
+//        dataEntryDao.upsert(entry2)
+//
+//        // Act
+//        val result = dataEntryDao.getAllOngoing().first()
+//
+//        // Assert
+//        Assert.assertEquals(2, result.size)
+//        Assert.assertTrue(result.all { it.ongoing })
+//    }
+//
+//    @Test
+//    fun getAllOngoing_WhenSomeEntriesAreOngoing_ShouldReturnOnlyOngoingOnes() = runBlocking {
+//        // Arrange
+//        val ongoingEntry = sampleDataEntry(ongoing = true)
+//        val nonOngoingEntry = sampleDataEntry(ongoing = false)
+//        dataEntryDao.upsert(ongoingEntry)
+//        dataEntryDao.upsert(nonOngoingEntry)
+//
+//        // Act
+//        val result = dataEntryDao.getAllOngoing().first()
+//
+//        // Assert
+//        Assert.assertEquals(1, result.size)
+//        Assert.assertTrue(result.first().ongoing)
+//    }
+//
+//    @Test
+//    fun getAllOngoing_WhenAllEntriesAreNonOngoing_ShouldReturnEmptyList() = runBlocking {
+//        // Arrange
+//        val entry1 = sampleDataEntry(ongoing = false)
+//        val entry2 = sampleDataEntry(ongoing = false)
+//        dataEntryDao.upsert(entry1)
+//        dataEntryDao.upsert(entry2)
+//
+//        // Act
+//        val result = dataEntryDao.getAllOngoing().first()
+//
+//        // Assert
+//        Assert.assertTrue(result.isEmpty())
+//    }
 
     /*** getAllPendingUpload() Tests ***/
 
@@ -422,6 +422,81 @@ class DataEntryDaoTest {
         Assert.assertTrue(result.isEmpty())
     }
 
+    /*** getLatestBySession() ***/
+    @Test
+    fun getLatestBySession_WhenNoEntriesExist_ShouldReturnNull() = runBlocking {
+        // Act
+        val result = dataEntryDao.getLatestBySession(localSessionId = 1L).first()
+
+        // Assert
+        Assert.assertNull(result)
+    }
+
+    @Test
+    fun getLatestBySession_WhenOneEntryExists_ShouldReturnThatEntry() = runBlocking {
+        // Arrange
+        val entry = sampleDataEntry(localSessionId = 1L, timestamp = 1000)
+        val entryId = dataEntryDao.upsert(entry)
+
+        // Act
+        val result = dataEntryDao.getLatestBySession(localSessionId = 1L).first()
+
+        // Assert
+        Assert.assertNotNull(result)
+        Assert.assertEquals(entryId, result?.localId)
+    }
+
+    @Test
+    fun getLatestBySession_WhenMultipleEntriesExist_ShouldReturnLatestEntry() = runBlocking {
+        // Arrange
+        val oldEntry = sampleDataEntry(localSessionId = 1L, timestamp = 1000)
+        val newEntry = sampleDataEntry(localSessionId = 1L, timestamp = 3000) // Latest timestamp
+
+        dataEntryDao.upsert(oldEntry)
+        val latestId = dataEntryDao.upsert(newEntry) // Should be returned
+
+        // Act
+        val result = dataEntryDao.getLatestBySession(localSessionId = 1L).first()
+
+        // Assert
+        Assert.assertNotNull(result)
+        Assert.assertEquals(latestId, result?.localId)
+    }
+
+    @Test
+    fun getLatestBySession_WhenEntriesExistForDifferentSessions_ShouldReturnOnlyMatchingSessionEntry() = runBlocking {
+        // Arrange
+        val session1Entry = sampleDataEntry(localSessionId = 1L, timestamp = 2000)
+        val session2Entry = sampleDataEntry(localSessionId = 2L, timestamp = 3000) // Different session
+
+        val session1Id = dataEntryDao.upsert(session1Entry)
+        dataEntryDao.upsert(session2Entry)
+
+        // Act
+        val result = dataEntryDao.getLatestBySession(localSessionId = 1L).first()
+
+        // Assert
+        Assert.assertNotNull(result)
+        Assert.assertEquals(session1Id, result?.localId)
+    }
+
+    @Test
+    fun getLatestBySession_WhenEntriesExistForRemoteSession_ShouldReturnLatestRemoteSessionEntry() = runBlocking {
+        // Arrange
+        val entry1 = sampleDataEntry(localSessionId = 1L, remoteSessionId = 100L, timestamp = 1000)
+        val entry2 = sampleDataEntry(localSessionId = 1L, remoteSessionId = 100L, timestamp = 2000) // Latest
+
+        dataEntryDao.upsert(entry1)
+        val latestId = dataEntryDao.upsert(entry2) // Should be returned
+
+        // Act
+        val result = dataEntryDao.getLatestBySession(remoteSessionId = 100L).first()
+
+        // Assert
+        Assert.assertNotNull(result)
+        Assert.assertEquals(latestId, result?.localId)
+    }
+
     /*** Helper Function ***/
 
     private fun sampleDataEntry(
@@ -437,10 +512,10 @@ class DataEntryDaoTest {
         pm25level: Float? = 12.3f,
         temperature: Float? = 22.0f,
         humidity: Float? = 60.0f,
-        ongoing: Boolean = true,
+//        ongoing: Boolean = true,
         pendingUpload: Boolean = true
     ) = DataEntryEntity(
         localId, serverId, userId, localSessionId, remoteSessionId, timestamp, latitude, longitude,
-        coLevel, pm25level, temperature, humidity, ongoing, pendingUpload
+        coLevel, pm25level, temperature, humidity, pendingUpload
     )
 }

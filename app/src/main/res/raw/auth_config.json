@@ -1,0 +1,13 @@
+{
+  "client_id": "1enpj0n61qc430hj752e67ap93",
+  "redirect_uri": "com.louislu.pennbioinformatics://callback",
+  "end_session_endpoint": "https://cognito-idp.us-east-2.amazonaws.com/us-east-2_9LU9Rb96p/logout",
+  "end_session_redirect_uri": "com.louislu.pennbioinformatics://oauth2redirect",
+  "authorization_scope": "openid email",
+  "discovery_uri": "https://cognito-idp.us-east-2.amazonaws.com/us-east-2_9LU9Rb96p/.well-known/openid-configuration",
+  "authorization_endpoint_uri": "",
+  "token_endpoint_uri": "",
+  "registration_endpoint_uri": "",
+  "user_info_endpoint_uri": "https://cognito-idp.us-east-2.amazonaws.com/us-east-2_9LU9Rb96p/oauth2/userInfo",
+  "https_required": true
+}

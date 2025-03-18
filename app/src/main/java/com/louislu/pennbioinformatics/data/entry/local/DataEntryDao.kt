@@ -21,8 +21,19 @@ interface DataEntryDao {
     """)
     fun getAllBySession(localSessionId: Long? = null, remoteSessionId: Long? = null): Flow<List<DataEntryEntity>>
 
-    @Query("SELECT * FROM data_entries WHERE ongoing = 1")
-    fun getAllOngoing(): Flow<List<DataEntryEntity>>
+    @Query("""
+        SELECT * FROM data_entries 
+        WHERE 
+            (:localSessionId IS NOT NULL OR :remoteSessionId IS NOT NULL)
+            AND (localSessionId = :localSessionId OR :localSessionId IS NULL)
+            AND (remoteSessionId = :remoteSessionId OR :remoteSessionId IS NULL)
+        ORDER BY timestamp DESC 
+        LIMIT 1
+    """)
+    fun getLatestBySession(localSessionId: Long? = null, remoteSessionId: Long? = null): Flow<DataEntryEntity?>
+
+//    @Query("SELECT * FROM data_entries WHERE ongoing = 1")
+//    fun getAllOngoing(): Flow<List<DataEntryEntity>>
 
     @Query("SELECT * FROM data_entries WHERE pendingUpload = 1")
     fun getAllPendingUpload(): Flow<List<DataEntryEntity>>
