@@ -16,7 +16,11 @@ interface BleRepository {
 
     // Device connection
     fun connectToBioinfoDevice(device: BleDevice)
-    fun disconnectDevice()
-    fun isConnected(): StateFlow<Boolean> // Track connection state
+    suspend fun disconnectDevice()
+    val isConnected: StateFlow<Boolean>
+    val isConnecting: StateFlow<Boolean>
     fun getBioinfoData(): Flow<BioinfoEntry?>
+
+    // Bluetooth
+    fun isEnabled(): Boolean
 }

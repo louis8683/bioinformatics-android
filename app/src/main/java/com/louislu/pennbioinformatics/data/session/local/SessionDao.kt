@@ -11,11 +11,14 @@ interface SessionDao {
     @Query("SELECT * FROM sessions ORDER BY startTimestamp DESC")
     fun getAll(): Flow<List<SessionEntity>>
 
-    @Query("SELECT * FROM sessions WHERE localId = :sessionId LIMIT 1")
-    fun getById(sessionId: Long): Flow<SessionEntity?>
+    @Query("SELECT * FROM sessions WHERE localId = :localId LIMIT 1")
+    fun getByLocalId(localId: Long): Flow<SessionEntity?>
+
+    @Query("SELECT * FROM sessions WHERE serverId = :serverId LIMIT 1")
+    fun getByServerId(serverId: Long): Flow<SessionEntity?>
 
     @Query("SELECT * FROM sessions WHERE pendingUpload = 1")
-    fun getAllPendingUpload(): Flow<List<SessionEntity>>
+    suspend fun getAllPendingUpload(): List<SessionEntity>
 
     @Upsert
     suspend fun upsert(sessionEntity: SessionEntity): Long

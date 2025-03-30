@@ -22,6 +22,7 @@ data class DataEntry(
     val pendingUpload: Boolean
 )
 
+// TODO: move this away from the domain
 fun generateFakeDataEntries(count: Int = 5): List<DataEntry> {
     return List(count) {
         DataEntry(

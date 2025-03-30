@@ -12,14 +12,18 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.callback.DataReceivedCallback
 import no.nordicsemi.android.ble.data.Data
+import no.nordicsemi.android.ble.exception.DeviceDisconnectedException
+import no.nordicsemi.android.ble.exception.InvalidRequestException
 import no.nordicsemi.android.ble.exception.RequestFailedException
 import timber.log.Timber
 import java.nio.ByteBuffer
@@ -29,7 +33,12 @@ import java.util.UUID
 
 class BioinfoBleManager(context: Context): BleManager(context) {
 
-    private var isConnected = false
+    private val _isConnected = MutableStateFlow(false)
+    val isConnected: StateFlow<Boolean> = _isConnected
+
+    private val _isConnecting = MutableStateFlow(false)
+    val isConnecting: StateFlow<Boolean> = _isConnecting
+
     private var handshakeResponse: String? = null
     private var handshakeJob: Job? = null
 
@@ -43,8 +52,6 @@ class BioinfoBleManager(context: Context): BleManager(context) {
         private const val HANDSHAKE_MSG = "hello"
         private const val HANDSHAKE_RESPONSE = "howdy"
         private const val HANDSHAKE_TIMEOUT = 5000L // 5 seconds
-
-        private const val DATA_READ_INTERVAL = 5000L
     }
 
     private var requestCharacteristic: android.bluetooth.BluetoothGattCharacteristic? = null
@@ -83,20 +90,24 @@ class BioinfoBleManager(context: Context): BleManager(context) {
         responseCharacteristic = null
         bioinfoCharacteristic = null
 
-        isConnected = false
+        _isConnected.value = false
         handshakeJob?.cancel()
     }
 
     fun connectToDevice(device: BluetoothDevice) {
+        _isConnecting.value = true
         connect(device)
             .timeout(10000)
             .useAutoConnect(false)
             .done {
                 Timber.d("Connected to ${device.address}")
-                isConnected = true
+//                isConnected = true
                 performHandshake()
             }
-            .fail { _, status -> Timber.e("Failed to connect: $status") }
+            .fail { _, status ->
+                Timber.e("Failed to connect: $status")
+                _isConnecting.value = false
+            }
             .enqueue()
     }
 
@@ -104,7 +115,7 @@ class BioinfoBleManager(context: Context): BleManager(context) {
         while (true) {
             try {
                 // Ensure device is connected and characteristic is available
-                if (!isConnected || bioinfoCharacteristic == null) {
+                if (!_isConnected.value || bioinfoCharacteristic == null) {
                     Timber.e("Cannot read bioinfo data: Device is not connected or characteristic is null")
                     delay(5000) // Wait before retrying
                     continue
@@ -131,7 +142,7 @@ class BioinfoBleManager(context: Context): BleManager(context) {
                 Timber.e("Failed to read bioinfo data: ${e.message}")
             }
 
-            delay(DATA_READ_INTERVAL) // Read every 5 seconds
+            delay(5000) // Read every 5 seconds
         }
     }.flowOn(Dispatchers.IO)
 
@@ -164,6 +175,7 @@ class BioinfoBleManager(context: Context): BleManager(context) {
 
         if (requestCharacteristic == null) {
             Timber.e("Handshake failed: Request characteristic is NULL")
+            _isConnecting.value = false
             return
         }
 
@@ -184,6 +196,7 @@ class BioinfoBleManager(context: Context): BleManager(context) {
 
                 withTimeout(HANDSHAKE_TIMEOUT) {
                     waitForIndication(responseCharacteristic)
+                        .timeout(HANDSHAKE_TIMEOUT)
                         .await(
                             object : DataReceivedCallback {
                                 override fun onDataReceived(device: BluetoothDevice, data: Data) {
@@ -195,17 +208,25 @@ class BioinfoBleManager(context: Context): BleManager(context) {
 
                 if (handshakeResponse == HANDSHAKE_RESPONSE) {
                     Timber.d("Handshake successful")
+                    _isConnected.value = true
                 } else {
                     Timber.e("Handshake failed: Bad response ($handshakeResponse)")
                     disconnectDevice()
                 }
-
             } catch (e: TimeoutCancellationException) {
+                Timber.e("Handshake failed: TIMEOUT")
+                disconnectDevice()
+            } catch (e: InterruptedException) {
                 Timber.e("Handshake failed: TIMEOUT")
                 disconnectDevice()
             } catch (e: RequestFailedException) {
                 Timber.e("Handshake failed: request failed")
                 disconnectDevice()
+            } catch (e: DeviceDisconnectedException) {
+                Timber.e("Handshake failed: device disconnected")
+                disconnectDevice()
+            } finally {
+                _isConnecting.value = false
             }
         }
     }
@@ -216,9 +237,17 @@ class BioinfoBleManager(context: Context): BleManager(context) {
         Timber.d("Received response: $response")
     }
 
-    fun disconnectDevice() {
-        if (isConnected) {
-            disconnect().enqueue()
+    suspend fun disconnectDevice() = withContext(Dispatchers.IO) {
+        Timber.e("Connection status: ${_isConnected.value}")
+        Timber.e("Disconnecting...")
+        try {
+            disconnect()
+                .timeout(HANDSHAKE_TIMEOUT)
+                .await()
+            _isConnected.value = false
+        } catch (e: InvalidRequestException) {
+            Timber.e("Already disconnected")
         }
+        Timber.e("Disconnected")
     }
 }

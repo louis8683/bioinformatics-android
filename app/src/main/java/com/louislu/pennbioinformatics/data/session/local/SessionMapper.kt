@@ -4,18 +4,21 @@ import com.louislu.pennbioinformatics.domain.model.Session
 
 fun Session.toEntity(): SessionEntity {
     return SessionEntity(
-        localId = localId ?: 0L,  // 0L lets Room auto-generate ID
+        localId = localId ?: 0L,  // Room auto-generates if 0
         serverId = serverId,
         userId = userId,
-        groupId = groupId,
-        deviceMac = deviceMac,
+        groupName = groupName,       // updated from groupId
+        className = className,
+        schoolName = schoolName,
+        deviceName = deviceName,     // updated from deviceMac
         startTimestamp = startTimestamp,
         endTimestamp = endTimestamp,
+        title = title,
         description = description,
         pendingUpload = pendingUpload
     )
 }
 
 fun List<Session>.toEntities(): List<SessionEntity> {
-    return this.map { it.toEntity() }
+    return map { it.toEntity() }
 }

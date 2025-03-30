@@ -1,4 +1,4 @@
-package com.louislu.pennbioinformatics.screen
+package com.louislu.pennbioinformatics.screen.login
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,10 +31,14 @@ fun LoginScreenRoot(
     navigateToPermissionScreen: () -> Unit
 ) {
     val isAuthorized by authViewModel.isAuthorized.collectAsState()
+    val initializing by authViewModel.initializing.collectAsState()
+
     Timber.i("isAuthorized: $isAuthorized")
 
-    LaunchedEffect(isAuthorized) {
-        if (isAuthorized) {
+    LaunchedEffect(initializing, isAuthorized) {
+        Timber.i("initializing: $initializing, isAuthorized: $isAuthorized")
+        if (!initializing && isAuthorized) {
+            Timber.i("Initialization completed. Is authorized? $isAuthorized")
             navigateToPermissionScreen()
         }
     }

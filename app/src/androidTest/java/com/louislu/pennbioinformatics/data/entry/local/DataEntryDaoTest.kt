@@ -355,7 +355,7 @@ class DataEntryDaoTest {
     @Test
     fun getAllPendingUpload_WhenNoEntriesExist_ShouldReturnEmptyList() = runBlocking {
         // Act
-        val result = dataEntryDao.getAllPendingUpload().first()
+        val result = dataEntryDao.getAllPendingUpload()
 
         // Assert
         Assert.assertTrue(result.isEmpty())
@@ -368,7 +368,7 @@ class DataEntryDaoTest {
         dataEntryDao.upsert(entry)
 
         // Act
-        val result = dataEntryDao.getAllPendingUpload().first()
+        val result = dataEntryDao.getAllPendingUpload()
 
         // Assert
         Assert.assertEquals(1, result.size)
@@ -384,7 +384,7 @@ class DataEntryDaoTest {
         dataEntryDao.upsert(entry2)
 
         // Act
-        val result = dataEntryDao.getAllPendingUpload().first()
+        val result = dataEntryDao.getAllPendingUpload()
 
         // Assert
         Assert.assertEquals(2, result.size)
@@ -400,7 +400,7 @@ class DataEntryDaoTest {
         dataEntryDao.upsert(nonPendingEntry)
 
         // Act
-        val result = dataEntryDao.getAllPendingUpload().first()
+        val result = dataEntryDao.getAllPendingUpload()
 
         // Assert
         Assert.assertEquals(1, result.size)
@@ -416,7 +416,7 @@ class DataEntryDaoTest {
         dataEntryDao.upsert(entry2)
 
         // Act
-        val result = dataEntryDao.getAllPendingUpload().first()
+        val result = dataEntryDao.getAllPendingUpload()
 
         // Assert
         Assert.assertTrue(result.isEmpty())

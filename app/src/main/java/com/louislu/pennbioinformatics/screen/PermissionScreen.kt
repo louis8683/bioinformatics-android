@@ -1,6 +1,7 @@
 package com.louislu.pennbioinformatics.screen
 
 import android.Manifest
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,23 +37,27 @@ fun PermissionScreenRoot(
     authViewModel: AuthViewModel,
     onPermissionGranted: () -> Unit
 ) {
-    val requiredPermissions = arrayOf(
-        Manifest.permission.BLUETOOTH_SCAN, // Android 12+
-        Manifest.permission.BLUETOOTH_CONNECT, // Android 12+
-        Manifest.permission.ACCESS_FINE_LOCATION
-    )
+    val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        arrayOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+    } else {
+        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
 
     var permissionsState by remember { mutableStateOf(false) }
 
-    // Request permissions
     val permissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        Timber.i("${permissions.keys}, ${permissions.values}")
-        permissionsState = permissions.all { it.value } // Check if all permissions are granted
+        Timber.i("Permissions: ${permissions.keys}, Status: ${permissions.values}")
+        permissionsState = permissions.all { it.value }
     }
 
-    // Auto-trigger permission request when screen appears
+    val userInfo by authViewModel.userInfo.collectAsState()
+
     LaunchedEffect(Unit) {
         permissionsLauncher.launch(requiredPermissions)
     }
@@ -61,9 +67,9 @@ fun PermissionScreenRoot(
         if (permissionsState) onPermissionGranted()
     }
 
-    // Prevent navigation until permissions are granted
+    // UI for permission retry
     PermissionScreen(
-        username = "(placeholder: TODO)",
+        username = userInfo?.nickname ?: "",
         onClick = {
             permissionsLauncher.launch(requiredPermissions)
         }
@@ -89,7 +95,7 @@ fun PermissionScreen(
             ) {
                 Text(text = stringResource(R.string.the_bioinformatics_app), style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(text = "Hi, $username!", style = MaterialTheme.typography.titleLarge)
+                Text(text = if (username.isNotEmpty()) "Hi, $username!" else "Hi!", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(text = "Please grant permission for Bluetooth and Location", style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(16.dp))

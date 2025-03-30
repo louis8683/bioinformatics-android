@@ -7,12 +7,13 @@ import android.location.Location
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
 import com.louislu.pennbioinformatics.domain.repository.LocationRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class LocationRepositoryImpl @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) : LocationRepository {
 
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)

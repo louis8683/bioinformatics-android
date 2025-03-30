@@ -85,25 +85,25 @@ class SessionDaoTest {
         Assert.assertEquals(sessionId1, result[2].localId)
     }
 
-    /*** getById() Tests ***/
+    /*** getByLocalId() Tests ***/
 
     @Test
-    fun getById_WhenNoSessionExists_ShouldReturnNull() = runBlocking {
+    fun getByLocalId_WhenNoSessionExists_ShouldReturnNull() = runBlocking {
         // Act
-        val result = sessionDao.getById(1L).first()
+        val result = sessionDao.getByLocalId(1L).first()
 
         // Assert
         Assert.assertNull(result)
     }
 
     @Test
-    fun getById_WhenSessionExists_ShouldReturnCorrectSession() = runBlocking {
+    fun getByLocalId_WhenSessionExists_ShouldReturnCorrectSession() = runBlocking {
         // Arrange
         val session = sampleSession()
         val sessionId = sessionDao.upsert(session) // Get actual assigned ID
 
         // Act
-        val result = sessionDao.getById(sessionId).first()
+        val result = sessionDao.getByLocalId(sessionId).first()
 
         // Assert
         Assert.assertNotNull(result)
@@ -111,7 +111,7 @@ class SessionDaoTest {
     }
 
     @Test
-    fun getById_WhenMultipleSessionsExist_ShouldReturnCorrectSession() = runBlocking {
+    fun getByLocalId_WhenMultipleSessionsExist_ShouldReturnCorrectSession() = runBlocking {
         // Arrange
         val session1 = sampleSession(userId = "userA")
         val session2 = sampleSession(userId = "userB")
@@ -120,8 +120,8 @@ class SessionDaoTest {
         val sessionId2 = sessionDao.upsert(session2)
 
         // Act
-        val result1 = sessionDao.getById(sessionId1).first()
-        val result2 = sessionDao.getById(sessionId2).first()
+        val result1 = sessionDao.getByLocalId(sessionId1).first()
+        val result2 = sessionDao.getByLocalId(sessionId2).first()
 
         // Assert
         Assert.assertEquals(sessionId1, result1?.localId)
@@ -132,13 +132,13 @@ class SessionDaoTest {
     }
 
     @Test
-    fun getById_WhenQueryingNonExistentId_ShouldReturnNull() = runBlocking {
+    fun getByLocalId_WhenQueryingNonExistentId_ShouldReturnNull() = runBlocking {
         // Arrange
         val session = sampleSession()
         sessionDao.upsert(session) // Insert a session, but we will query a non-existent ID
 
         // Act
-        val result = sessionDao.getById(999L).first() // Querying a non-existent session ID
+        val result = sessionDao.getByLocalId(999L).first() // Querying a non-existent session ID
 
         // Assert
         Assert.assertNull(result)
@@ -149,7 +149,7 @@ class SessionDaoTest {
     @Test
     fun getAllPendingUpload_WhenNoSessionsExist_ShouldReturnEmptyList() = runBlocking {
         // Act
-        val result = sessionDao.getAllPendingUpload().first()
+        val result = sessionDao.getAllPendingUpload()
 
         // Assert
         Assert.assertTrue(result.isEmpty())
@@ -162,7 +162,7 @@ class SessionDaoTest {
         val sessionId = sessionDao.upsert(session)
 
         // Act
-        val result = sessionDao.getAllPendingUpload().first()
+        val result = sessionDao.getAllPendingUpload()
 
         // Assert
         Assert.assertEquals(1, result.size)
@@ -180,7 +180,7 @@ class SessionDaoTest {
         val sessionId2 = sessionDao.upsert(session2)
 
         // Act
-        val result = sessionDao.getAllPendingUpload().first()
+        val result = sessionDao.getAllPendingUpload()
 
         // Assert
         Assert.assertEquals(2, result.size)
@@ -198,7 +198,7 @@ class SessionDaoTest {
         sessionDao.upsert(nonPendingSession)
 
         // Act
-        val result = sessionDao.getAllPendingUpload().first()
+        val result = sessionDao.getAllPendingUpload()
 
         // Assert
         Assert.assertEquals(1, result.size)
@@ -215,36 +215,36 @@ class SessionDaoTest {
         sessionDao.upsert(session2)
 
         // Act
-        val result = sessionDao.getAllPendingUpload().first()
+        val result = sessionDao.getAllPendingUpload()
 
         // Assert
         Assert.assertTrue(result.isEmpty())
     }
 
-    @Test(timeout = 1000)
-    fun getAllPendingUpload_WhenSessionIsUpdatedFromPendingToNonPending_ShouldNoLongerBeRetrieved() = runBlocking {
-        // Arrange
-        val session = sampleSession(pendingUpload = true)
-
-        // Act
-        val sessionId = sessionDao.upsert(session)
-
-        sessionDao.getAllPendingUpload().test {
-            // Assert
-            Assert.assertTrue(awaitItem().all { it.pendingUpload })
-
-            // Act
-            val updatedSession = session.copy(localId = sessionId, pendingUpload = false)
-            sessionDao.upsert(updatedSession)
-
-            // Assert
-            Assert.assertTrue(awaitItem().isEmpty()) // The last observed value should be an empty list
-
-            expectNoEvents()
-
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
+//    @Test(timeout = 1000)
+//    fun getAllPendingUpload_WhenSessionIsUpdatedFromPendingToNonPending_ShouldNoLongerBeRetrieved() = runBlocking {
+//        // Arrange
+//        val session = sampleSession(pendingUpload = true)
+//
+//        // Act
+//        val sessionId = sessionDao.upsert(session)
+//
+//        sessionDao.getAllPendingUpload().test {
+//            // Assert
+//            Assert.assertTrue(awaitItem().all { it.pendingUpload })
+//
+//            // Act
+//            val updatedSession = session.copy(localId = sessionId, pendingUpload = false)
+//            sessionDao.upsert(updatedSession)
+//
+//            // Assert
+//            Assert.assertTrue(awaitItem().isEmpty()) // The last observed value should be an empty list
+//
+//            expectNoEvents()
+//
+//            cancelAndIgnoreRemainingEvents()
+//        }
+//    }
 
     /*** upsert() ***/
 
@@ -253,7 +253,7 @@ class SessionDaoTest {
         val session = sampleSession()
         val sessionId = sessionDao.upsert(session)
 
-        val result = sessionDao.getById(sessionId).first()
+        val result = sessionDao.getByLocalId(sessionId).first()
         Assert.assertNotNull(result)
         Assert.assertEquals(sessionId, result?.localId)
     }
@@ -266,7 +266,7 @@ class SessionDaoTest {
         val updatedSession = session.copy(localId = sessionId, description = "Updated Description")
         sessionDao.upsert(updatedSession)
 
-        val result = sessionDao.getById(sessionId).first()
+        val result = sessionDao.getByLocalId(sessionId).first()
         Assert.assertEquals("Updated Description", result?.description)
     }
 
@@ -277,12 +277,12 @@ class SessionDaoTest {
         val session = sampleSession()
         val sessionId = sessionDao.upsert(session)
 
-        val insertedSession = sessionDao.getById(sessionId).first()
+        val insertedSession = sessionDao.getByLocalId(sessionId).first()
         Assert.assertNotNull(insertedSession) // Ensure the session was inserted
 
         sessionDao.delete(insertedSession!!) // Delete it
 
-        val result = sessionDao.getById(sessionId).first()
+        val result = sessionDao.getByLocalId(sessionId).first()
         Assert.assertNull(result) // Session should no longer exist
     }
 
@@ -310,14 +310,30 @@ class SessionDaoTest {
         localId: Long = 0,
         serverId: Long? = null,
         userId: String = "user123",
-        groupId: String? = "groupA",
-        deviceMac: String = "00:1A:7D:DA:71:13",
-        startTimestamp: Long = 1740729327L,
+        groupName: String? = "groupA",
+        className: String = "Class 101",
+        schoolName: String = "Test High School",
+        deviceName: String? = "Sensor-A",
+        startTimestamp: Long = 1740729327000L, // epoch in millis
         endTimestamp: Long? = null,
+        title: String = "Sample Session",
         description: String? = "Test Session",
         pendingUpload: Boolean = true
-    ) = SessionEntity(
-        localId, serverId, userId, groupId, deviceMac,
-        startTimestamp, endTimestamp, description, pendingUpload
-    )
+    ): SessionEntity {
+        return SessionEntity(
+            localId = localId,
+            serverId = serverId,
+            userId = userId,
+            groupName = groupName,
+            className = className,
+            schoolName = schoolName,
+            deviceName = deviceName,
+            startTimestamp = startTimestamp,
+            endTimestamp = endTimestamp,
+            title = title,
+            description = description,
+            pendingUpload = pendingUpload
+        )
+    }
+
 }

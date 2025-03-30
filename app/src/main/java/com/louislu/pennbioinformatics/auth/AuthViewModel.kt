@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.louislu.logintester.appauthhelper.AuthStateManager
 import com.louislu.logintester.appauthhelper.Configuration
+import com.louislu.pennbioinformatics.domain.model.UserInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -38,6 +39,7 @@ import net.openid.appauth.TokenRequest
 import net.openid.appauth.TokenResponse
 import net.openid.appauth.browser.AnyBrowserMatcher
 import net.openid.appauth.browser.BrowserMatcher
+import retrofit2.HttpException
 import timber.log.Timber
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -56,8 +58,30 @@ class AuthViewModel @Inject constructor(
     private val _authCancelledFlow = MutableSharedFlow<Unit>()
     val authCancelledFlow: SharedFlow<Unit> = _authCancelledFlow
 
+    private val _userInfo = MutableStateFlow<UserInfo?>(null)
+    val userInfo: StateFlow<UserInfo?> = _userInfo
+
+    private val _initializing = MutableStateFlow(true)
+    val initializing: StateFlow<Boolean> = _initializing
+
     init {
-        authRepository.initializeAppAuth()
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    authRepository.initializeAppAuth()
+                    try {
+                        authRepository.getAccessToken()
+                    } catch (e: AuthError.Network.NoAccessToken) {
+                        Timber.i("No access token, redo login")
+                    } catch (e: Exception) {
+                        Timber.i("Other exception: $e")
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.i("Error during initialization of AppAuth: $e")
+            }
+            _initializing.value = false
+        }
     }
 
     fun onAuthCancelled() {
@@ -72,8 +96,20 @@ class AuthViewModel @Inject constructor(
 
     fun getUserInfo() {
         viewModelScope.launch {
-            val userInfo = authRepository.getUserInfo()
-            Timber.i("Get User Info Result: $userInfo")
+            _userInfo.value = authRepository.getUserInfo()
+            Timber.i("Get User Info Result: ${userInfo.value}")
+        }
+    }
+
+    fun updateUserInfo(schoolName:String, className: String, groupName: String) {
+        viewModelScope.launch {
+            try {
+                authRepository.updateUserInfo(schoolName, className, groupName)
+                getUserInfo()
+            } catch (e: Exception) {
+                Timber.i("Exception: $e")
+                // TODO: gracefully handle
+            }
         }
     }
 

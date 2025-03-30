@@ -84,6 +84,11 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
+    // Material 3 compose
+    implementation("androidx.compose.material3:material3:1.3.1")
+    implementation("androidx.compose.material3:material3-window-size-class:1.3.1")
+    implementation("androidx.compose.material3:material3-adaptive-navigation-suite:1.4.0-alpha10")
+
     // Compose navigation
     implementation("androidx.navigation:navigation-compose:2.8.9")
 
@@ -92,6 +97,7 @@ dependencies {
     implementation(libs.androidx.rules)
     implementation(libs.play.services.location)
     ksp(libs.hilt.android.compiler)
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // GSON
     implementation(libs.gson)
@@ -115,7 +121,14 @@ dependencies {
 
     // OKIO to read config from JSON
     implementation("com.squareup.okio:okio:3.10.2")
-    
+
+    // Retrofit
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+
+    // Datastore
+    implementation("androidx.datastore:datastore-preferences:1.1.4")
+
     // Test
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

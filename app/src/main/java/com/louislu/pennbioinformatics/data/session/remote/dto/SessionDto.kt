@@ -5,28 +5,45 @@ import com.louislu.pennbioinformatics.domain.model.Session
 import java.time.Instant
 
 data class SessionDto(
-    val id: Long,
+    val id: Long, // API-generated session ID
+
     @SerializedName("user_id")
     val userId: String,
-    @SerializedName("group_id")
-    val groupId: String?,
-    @SerializedName("device_mac")
-    val deviceMac: String,  // API uses MACADDR, but we use String
+
+    @SerializedName("group_name")
+    val groupName: String?,
+
+    @SerializedName("class_name")
+    val className: String,
+
+    @SerializedName("school_name")
+    val schoolName: String,
+
+    @SerializedName("device_name")
+    val deviceName: String?,
+
     @SerializedName("start_timestamp")
-    val startTimestamp: String,  // API provides TIMESTAMPTZ (ISO 8601 format)
+    val startTimestamp: Long,  // Epoch millis from backend
+
     @SerializedName("end_timestamp")
-    val endTimestamp: String?,  // Nullable
+    val endTimestamp: Long?,   // Nullable if ongoing
+
+    val title: String,
+
     val description: String?
 ) {
     fun toDomainModel(): Session {
         return Session(
-            localId = null,
+            localId = null, // Will be set by Room
             serverId = id,
             userId = userId,
-            groupId = groupId,
-            deviceMac = deviceMac,
-            startTimestamp = Instant.parse(startTimestamp).toEpochMilli(), // Convert TIMESTAMPTZ to Long
-            endTimestamp = endTimestamp?.let { Instant.parse(it).toEpochMilli() }, // Convert if not null
+            groupName = groupName, // Re-mapped to groupId in domain model
+            className = className,
+            schoolName = schoolName,
+            deviceName = deviceName, // Safe fallback
+            startTimestamp = startTimestamp,
+            endTimestamp = endTimestamp,
+            title = title,
             description = description,
 
             // local flags

@@ -36,5 +36,5 @@ interface DataEntryDao {
 //    fun getAllOngoing(): Flow<List<DataEntryEntity>>
 
     @Query("SELECT * FROM data_entries WHERE pendingUpload = 1")
-    fun getAllPendingUpload(): Flow<List<DataEntryEntity>>
+    suspend fun getAllPendingUpload(): List<DataEntryEntity>
 }

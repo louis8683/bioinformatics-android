@@ -28,10 +28,11 @@ import com.louislu.pennbioinformatics.R
 
 @Composable
 fun SessionEndedScreen(
+    initialDescription: String,
     onUpdateClicked: (String) -> Unit,
-    onSkipClicked: (String) -> Unit
+    onSkipClicked: () -> Unit
 ) {
-    var text by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf(initialDescription) }
 
     Scaffold { innerPadding ->
         Box(
@@ -51,13 +52,13 @@ fun SessionEndedScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(text = "Session ended", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Update description for the session?", style = MaterialTheme.typography.labelLarge)
+                Text(text = "Finalize your observation", style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    placeholder = { Text(text = "Enter descriptions here") },
+                    placeholder = { Text(text = "Enter observations here") },
                     maxLines = 5,
                     minLines = 5,
                     modifier = Modifier
@@ -67,13 +68,13 @@ fun SessionEndedScreen(
                 Button(onClick = {
                     onUpdateClicked(text)
                 }) {
-                    Text("Update")
+                    Text("Done")
                 }
-                OutlinedButton(onClick = {
-                    onSkipClicked(text)
-                }) {
-                    Text("Skip")
-                }
+//                OutlinedButton(onClick = {
+//                    onSkipClicked()
+//                }) {
+//                    Text("Skip")
+//                }
             }
         }
     }
@@ -82,5 +83,5 @@ fun SessionEndedScreen(
 @Preview
 @Composable
 fun SessionEndedScreenPreview() {
-    SessionEndedScreen({}, {})
+    SessionEndedScreen("some description", {}, {})
 }

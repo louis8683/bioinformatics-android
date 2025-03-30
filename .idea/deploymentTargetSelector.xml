@@ -4,14 +4,28 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
+        <DropdownSelection timestamp="2025-03-29T04:00:31.359020Z">
+          <Target type="DEFAULT_BOOT">
+            <handle>
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=33281JEHN21715" />
+            </handle>
+          </Target>
+        </DropdownSelection>
+        <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="DataEntryDaoTest">
+      <SelectionState runConfigName="getLatestBySession_WhenOneEntryExists_ShouldReturnThatEntry()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="SessionDaoTest">
+      <SelectionState runConfigName="getLatestBySession_WhenMultipleEntriesExist_ShouldReturnLatestEntry()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="BleScanTest">
+      <SelectionState runConfigName="getLatestBySession_WhenEntriesExistForDifferentSessions_ShouldReturnOnlyMatchingSessionEntry()">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="getLatestBySession_WhenEntriesExistForRemoteSession_ShouldReturnLatestRemoteSessionEntry()">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="EntryHistoryScreenPreview">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>

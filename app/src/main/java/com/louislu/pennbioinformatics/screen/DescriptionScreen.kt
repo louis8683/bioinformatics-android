@@ -47,14 +47,14 @@ fun DescriptionScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(text = "Creating session...", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Enter some description for the session", style = MaterialTheme.typography.labelLarge)
+                Text(text = "Finalize your observations here", style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
 //                    label = { Text("Description") },
-                    placeholder = { Text(text = "Enter descriptions here") },
+                    placeholder = { Text(text = "Finalize your observations here") },
                     maxLines = 5,
                     minLines = 5
                 )

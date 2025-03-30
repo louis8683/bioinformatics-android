@@ -1,11 +1,9 @@
-package com.louislu.pennbioinformatics.screen
+package com.louislu.pennbioinformatics.screen.monitor
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.location.Location
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,20 +14,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemColors
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,23 +43,26 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.google.android.gms.location.LocationServices
-import com.louislu.pennbioinformatics.ble.BleViewModel
 import com.louislu.pennbioinformatics.domain.model.DataEntry
-import com.louislu.pennbioinformatics.domain.model.Device
+import com.louislu.pennbioinformatics.domain.model.Session
 import com.louislu.pennbioinformatics.domain.model.generateFakeDataEntries
+import com.louislu.pennbioinformatics.screen.SessionEndedScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import java.time.Instant
 import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
 fun DataMonitorScreenRoot(
-    bleViewModel: BleViewModel
+    dataMonitorViewModel: DataMonitorViewModel,
+    navigateToMenu: () -> Unit
 ) {
-    val dataMonitorViewModel: DataMonitorViewModel = viewModel()
+    val dataEntry by dataMonitorViewModel.latestDataEntry.collectAsState()
+    val session by dataMonitorViewModel.currentSession.collectAsState()
 
     val context = LocalContext.current
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
@@ -85,34 +77,64 @@ fun DataMonitorScreenRoot(
         }
     }
 
-    val startTime by remember { mutableLongStateOf(Instant.now().toEpochMilli()) }
-    val currentBioinfoEntry by bleViewModel.bioInfoData.collectAsState(initial = null)
+    val navController = rememberNavController()
 
+    NavHost(navController = navController, startDestination = "monitor") {
 
-    DataMonitorScreen(
-        data = null,
-        startTimeEpoch = startTime,
-        location = null) {
+        composable(route = "monitor") {
+            LaunchedEffect(Unit) {
+                dataMonitorViewModel.navigateToSessionEnded.collect {
+                    navController.navigate("sessionEnded")
+                }
+            }
+
+            DataMonitorScreen(
+                data = dataEntry,
+                session = session,
+                onEndSessionConfirmed = {
+                    dataMonitorViewModel.syncPendingAndNavigate()
+                    // TODO: add a loading indicator
+                },
+                onDescriptionUpdated = { dataMonitorViewModel.updateDescription(it) }
+            )
+        }
+        composable(route = "sessionEnded") {
+            SessionEndedScreen(
+                initialDescription = session?.description ?: "",
+                onUpdateClicked = {
+                    dataMonitorViewModel.updateDescription(it)
+                    navigateToMenu() // TODO: make sure this is done after the update has finished
+                },
+                onSkipClicked = { navigateToMenu() }
+            )
+        }
     }
 }
 
 @Composable
 fun DataMonitorScreen(
     data: DataEntry?,
-    startTimeEpoch: Long,
-    location: Location?,
-    onEndSessionConfirmed: () -> Unit
+    session: Session?,
+    onEndSessionConfirmed: () -> Unit,
+    onDescriptionUpdated: (String) -> Unit
+    // TODO: add a onTitleUpdated
+    // TODO: what if internet is lost halfway? can "createSession" update the session?
 ) {
     var secondsElapsed by remember { mutableLongStateOf(0) }
-    var text by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
     val openAlertDialog = remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(session) {
         while (isActive) {
             val now = System.currentTimeMillis()
-            secondsElapsed = (now - startTimeEpoch) / 1000
+            secondsElapsed = session?.let { (now - session.startTimestamp) / 1000 } ?: 0L
             delay(1000L)
         }
+    }
+
+    LaunchedEffect(description) {
+        onDescriptionUpdated(description)
     }
 
     Scaffold { innerPadding ->
@@ -131,12 +153,12 @@ fun DataMonitorScreen(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge)
-                Text("Session ongoing...", style = MaterialTheme.typography.titleLarge)
+                Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge) // TODO: Bold
+                Text("Session running...", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Session Duration: ${formatElapsedTime(secondsElapsed)}", style = MaterialTheme.typography.labelLarge)
+                Text("Session Duration: ${formatElapsedTime(secondsElapsed)}", style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Location: ${formatLocation(location?.latitude ?: Double.MIN_VALUE, location?.longitude ?: Double.MIN_VALUE)}", style = MaterialTheme.typography.labelLarge)
+                Text("Location: ${formatLocation(data?.latitude ?: Double.MIN_VALUE, data?.longitude ?: Double.MIN_VALUE)}", style = MaterialTheme.typography.bodyLarge)
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -154,13 +176,19 @@ fun DataMonitorScreen(
                     ) {
                         SensorDataDisplay(
                             label = "PM2.5",
-                            value = "${data?.pm25level?.let { (it * 10).roundToInt() / 10.0 } ?: "--"}",
+                            value = "${data?.pm25level?.let { 
+                                if (it.roundToInt() == -1) "N/A"
+                                else (it * 10).roundToInt() / 10.0 
+                            } ?: "--"}",
                             unit = "µg/m³"
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         SensorDataDisplay(
                             label = "Temp",
-                            value = "${data?.temperature?.let { (it * 10).roundToInt() / 10.0 }}",
+                            value = "${data?.temperature?.let { 
+                                if (it == Float.NEGATIVE_INFINITY) "N/A"
+                                else (it * 10).roundToInt() / 10.0 
+                            }}",
                             unit = "°C"
                         )
                     }
@@ -170,13 +198,19 @@ fun DataMonitorScreen(
                     ) {
                         SensorDataDisplay(
                             label = "CO",
-                            value = "${data?.coLevel?.let { (it * 10).roundToInt() / 10.0 }}",
+                            value = "${data?.coLevel?.let {
+                                if (it == Float.NEGATIVE_INFINITY) "N/A"
+                                else (it * 10).roundToInt() / 10.0 
+                            }}",
                             unit = "ppm"
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         SensorDataDisplay(
                             label = "Hum",
-                            value = "${data?.humidity?.let { (it * 10).roundToInt() / 10.0 }}",
+                            value = "${data?.humidity?.let {
+                                if (it == Float.NEGATIVE_INFINITY) "N/A"
+                                else (it * 1000).roundToInt() / 10.0 
+                            }}",
                             unit = "%"
                         )
                     }
@@ -184,14 +218,25 @@ fun DataMonitorScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
-
             OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-//                    label = { Text("Description") },
-                placeholder = { Text(text = "Enter descriptions here") },
-                maxLines = 5,
-                minLines = 5,
+                value = title,
+                onValueChange = { title = it },
+                placeholder = { Text(text = "Enter session title here") },
+                label = { Text("Session Title") },
+                maxLines = 1,
+//                minLines = 1,
+                modifier = Modifier
+                    .wrapContentHeight()
+                    .fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                placeholder = { Text(text = "Enter observations here") },
+                label = { Text("Observation") },
+//                maxLines = 5,
+//                minLines = 5,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -221,7 +266,10 @@ fun DataMonitorScreen(
     when {
         openAlertDialog.value -> {
             EndSessionConfirmAlertDialog(
-                onConfirm = onEndSessionConfirmed,
+                onConfirm = {
+                    openAlertDialog.value = false
+                    onEndSessionConfirmed()
+                },
                 onDismiss = { openAlertDialog.value = false }
             )
         }
@@ -310,32 +358,36 @@ fun SensorDataDisplayPreview() {
     }
 }
 
+private fun mockSession(): Session {
+    return Session(
+        localId = 1L,
+        serverId = 100L,
+        userId = "test-user",
+        groupName = "test-group",
+        className = "test-class",
+        schoolName = "test-school",
+        deviceName = "AA:BB:CC:DD:EE:FF",
+        startTimestamp = 1742088746000L, // ✅ Static timestamp for consistency
+        endTimestamp = null, // Session is ongoing
+        title = "test-title",
+        description = "Mock Bio Data Session",
+        pendingUpload = false
+    )
+}
+
 @Preview(showBackground = true)
 @Composable
 fun DataMonitorScreenPreview() {
-    // Mock Location
-    val mockLocation = Location("mockProvider").apply {
-        latitude = 37.7749  // San Francisco latitude
-        longitude = -122.4194 // San Francisco longitude
-        altitude = 15.0
-        accuracy = 5f
-    }
 
     val dataEntry = generateFakeDataEntries(1)[0]
 
-    DataMonitorScreen(dataEntry.copy(pm25level = 8000.0f), 1742088746000L, mockLocation, {})
+
+    DataMonitorScreen(dataEntry.copy(pm25level = 8000.0f), mockSession(), {}, {})
 }
 
 @Preview(showBackground = true)
 @Composable
 fun DataMonitorScreenPreviewNull() {
-    // Mock Location
-    val mockLocation = Location("mockProvider").apply {
-        latitude = 37.7749  // San Francisco latitude
-        longitude = -122.4194 // San Francisco longitude
-        altitude = 15.0
-        accuracy = 5f
-    }
 
     val dataEntry = generateFakeDataEntries(1)[0]
 
@@ -344,5 +396,5 @@ fun DataMonitorScreenPreviewNull() {
         coLevel = null,
         temperature = null,
         humidity = null
-    ), 1742088746000L, mockLocation, {})
+    ), mockSession(), {}, {})
 }

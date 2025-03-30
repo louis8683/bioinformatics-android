@@ -7,11 +7,19 @@ import android.text.TextUtils
 import androidx.browser.customtabs.CustomTabsIntent
 import com.louislu.logintester.appauthhelper.AuthStateManager
 import com.louislu.logintester.appauthhelper.Configuration
+import com.louislu.pennbioinformatics.domain.model.UserInfo
 import com.louislu.pennbioinformatics.safeLet
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import net.openid.appauth.AppAuthConfiguration
 import net.openid.appauth.AuthState
@@ -27,6 +35,7 @@ import net.openid.appauth.TokenRequest
 import net.openid.appauth.TokenResponse
 import net.openid.appauth.browser.AnyBrowserMatcher
 import net.openid.appauth.browser.BrowserMatcher
+import net.openid.appauth.connectivity.ConnectionBuilder
 import okio.buffer
 import okio.source
 import okio.use
@@ -38,8 +47,10 @@ import java.net.HttpURLConnection
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.resumeWithException
 
 class AuthRepositoryImpl(
+    private val userService: UserService,
     @ApplicationContext private val context: Context
 ): AuthRepository {
 
@@ -76,9 +87,12 @@ class AuthRepositoryImpl(
 
     /** Override Functions **/
 
-    override fun isAuthorized(): StateFlow<Boolean> { return _isAuthorized }
+    override fun isAuthorized(): StateFlow<Boolean> {
+        _isAuthorized.value = mAuthStateManager.current.isAuthorized // TODO: is there a better way to reactively update the token?
+        return _isAuthorized
+    }
 
-    override fun initializeAppAuth() {
+    override suspend fun initializeAppAuth() {
         Timber.i("Initializing AppAuth")
         recreateAuthorizationService()
 
@@ -94,36 +108,41 @@ class AuthRepositoryImpl(
         // from the static configuration values.
         mConfiguration.discoveryUri?.let { discoveryUri ->
             Timber.i("Retrieving OpenID discovery doc")
-            AuthorizationServiceConfiguration.fetchFromUrl(
-                discoveryUri,
-                { config, ex ->
+            try {
+                // If we already have the config, we don't update it
+                if (mAuthStateManager.current.authorizationServiceConfiguration == null) {
+                    val config = fetchDiscoveryDocument(discoveryUri, mConfiguration.connectionBuilder)
+                    Timber.i("Discovery document retrieved")
+                    mAuthStateManager.replace(AuthState(config))
+                }
+                initializeClient()
+                createAuthRequest()
+                warmUpBrowser()
+            } catch (e: Exception) {
+                Timber.e("Exception during discovery document retrieval: $e")
+                throw e
+            }
+        } ?: throw IllegalStateException("Must have discovery document endpoint in config")
+    }
 
-                    config?.let {
-                        Timber.i("Discovery document retrieved")
-                        mAuthStateManager.replace(AuthState(config))
-                        initializeClient()
-                        createAuthRequest()
-                        warmUpBrowser()
-                    } ?: throw AuthError.Network.RetrieveDiscoveryFailed() // TODO: elegant handling
-                },
-                mConfiguration.connectionBuilder
-            )
-        } ?: {
-            Timber.i( "Not using discovery, creating auth config from res/raw/auth_config.json")
-            val config = safeLet(
-                mConfiguration.authEndpointUri,
-                mConfiguration.tokenEndpointUri,
-                mConfiguration.registrationEndpointUri,
-                mConfiguration.endSessionEndpoint
-            ) { auth, token, registration, endSession ->
-                AuthorizationServiceConfiguration(auth, token, registration, endSession)
-            } ?: throw AuthError.Local.MissingDiscoveryUriOrExplicitEndpoints() // TODO: handle this elegantly
-
-            mAuthStateManager.replace(AuthState(config))
-            initializeClient()
-            createAuthRequest()
-            warmUpBrowser()
-        }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    suspend fun fetchDiscoveryDocument(
+        discoveryUri: Uri,
+        connectionBuilder: ConnectionBuilder
+    ): AuthorizationServiceConfiguration = suspendCancellableCoroutine { continuation ->
+        AuthorizationServiceConfiguration.fetchFromUrl(
+            discoveryUri,
+            { config, ex ->
+                if (ex != null) {
+                    continuation.resumeWithException(ex)
+                } else if (config != null) {
+                    continuation.resume(config){}
+                } else {
+                    continuation.resumeWithException(AuthError.Network.RetrieveDiscoveryFailed())
+                }
+            },
+            connectionBuilder
+        )
     }
 
     override fun getAuthorizationRequestIntent(): Intent {
@@ -164,19 +183,70 @@ class AuthRepositoryImpl(
         }
     }
 
-    override suspend fun getUserInfo(): JSONObject {
-        var accessToken: String? = null
-        var ex: AuthorizationException? = null
+    override suspend fun getUserInfo(): UserInfo? {
+        val json = fetchUserInfo()
+        return json?.let {
+            val info = UserInfo(
+                userId = json.getString("sub"),
+                className = json.optString("custom:class_name", null),
+                groupName = json.optString("custom:group_name", null),
+                schoolName = json.optString("custom:school_name", null),
+                email = json.optString("email", null),
+                familyName = json.getString("family_name"),
+                givenName = json.getString("given_name"),
+                nickname = json.getString("nickname")
+            )
+            saveUserInfo(info)
+            info
+        } ?: loadUserInfoFromDataStore()
+    }
 
-        mAuthService?.let {
-            mAuthStateManager.current.performActionWithFreshTokens(it) {
-                access, _, e ->
-                accessToken = access
-                ex = e
+    override suspend fun updateUserInfo(schoolName: String, className: String, groupName: String) {
+
+        val token = getAccessToken()
+        val request = UpdateUserInfoRequest(
+            access_token = token,
+            group_name = groupName,
+            class_name = className,
+            school_name = schoolName
+        )
+        userService.updateUserInfo("Bearer $token", request)
+        getUserInfo()?.let {
+            saveUserInfo(
+                it.copy(
+                    groupName = groupName,
+                    className = className,
+                    schoolName = schoolName
+                )
+            )
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override suspend fun getAccessToken(): String = suspendCancellableCoroutine { cont ->
+        val authService = mAuthService
+            ?: return@suspendCancellableCoroutine cont.resumeWithException(AuthError.Local.AuthServiceNotInitialized())
+
+        val authState = mAuthStateManager.current
+
+        Timber.i("AuthState during start of getAccessToken: $authState")
+        Timber.i("isAuthorized: ${authState.isAuthorized}")
+        Timber.i("accessToken: ${authState.accessToken}")
+        Timber.i("refreshToken: ${authState.refreshToken}")
+        Timber.i("needsTokenRefresh: ${authState.needsTokenRefresh}")
+        Timber.i("scope: ${authState.scope}")
+
+        authState.performActionWithFreshTokens(authService) { accessToken, _, ex ->
+            _isAuthorized.value = authState.isAuthorized
+            when {
+                ex != null -> cont.resumeWithException(ex)
+                accessToken != null -> {
+
+                    cont.resume(accessToken) { CancellationException() }
+                }
+                else -> cont.resumeWithException(AuthError.Network.NoAccessToken())
             }
-        } ?: throw AuthError.Local.AuthServiceNotInitialized()
-
-        return fetchUserInfo(accessToken, ex)
+        }
     }
 
     override fun logout() {
@@ -195,6 +265,20 @@ class AuthRepositoryImpl(
     }
 
     /** Private Functions **/
+
+    private suspend fun saveUserInfo(userInfo: UserInfo) {
+        withContext(Dispatchers.IO) {
+            context.userInfoDataStore.updateData { userInfo }
+            Timber.i("UserInfo saved to DataStore")
+        }
+    }
+
+    private suspend fun loadUserInfoFromDataStore(): UserInfo? {
+        Timber.i("Loading UserInfo from to DataStore")
+        return withContext(Dispatchers.IO) {
+            context.userInfoDataStore.data.map { it }.firstOrNull()
+        }
+    }
 
     private fun recreateAuthorizationService() {
         Timber.i("Discarding existing AuthService instance")
@@ -306,24 +390,21 @@ class AuthRepositoryImpl(
 
     // User Info
 
-    private suspend fun fetchUserInfo(accessToken: String?, ex: AuthorizationException?): JSONObject {
-        if (ex != null) {
-            Timber.e("Token refresh failed when fetching user info: ${ex.message}")
-            throw AuthError.Network.TokenRefreshFailed()
-        }
+    private suspend fun fetchUserInfo(): JSONObject? {
+        try {
+            val accessToken = getAccessToken()
 
-        val discovery: AuthorizationServiceDiscovery? =
-            mAuthStateManager.current.getAuthorizationServiceConfiguration()?.discoveryDoc
+            val discovery: AuthorizationServiceDiscovery? =
+                mAuthStateManager.current.getAuthorizationServiceConfiguration()?.discoveryDoc
 
-        val userInfoEndpoint = mConfiguration.userInfoEndpointUri
-            ?: discovery?.let { Uri.parse(it.userinfoEndpoint.toString()) }
-            ?: throw AuthError.Local.MissingDiscoveryUriOrExplicitEndpoints()
+            val userInfoEndpoint = mConfiguration.userInfoEndpointUri
+                ?: discovery?.let { Uri.parse(it.userinfoEndpoint.toString()) }
+                ?: throw AuthError.Local.MissingDiscoveryUriOrExplicitEndpoints()
 
-        Timber.d("Endpoint: " + AuthorizationServiceConfiguration.WELL_KNOWN_PATH)
-        Timber.d("User info endpoint: $userInfoEndpoint")
+            Timber.d("Endpoint: %s", AuthorizationServiceConfiguration.WELL_KNOWN_PATH)
+            Timber.d("User info endpoint: $userInfoEndpoint")
 
-        return withContext(Dispatchers.IO) {
-            try {
+            return withContext(Dispatchers.IO) {
                 Timber.d("Sending request with the Bearer token as: $accessToken")
 
                 val conn: HttpURLConnection = mConfiguration
@@ -339,13 +420,18 @@ class AuthRepositoryImpl(
                 Timber.d("User info response: $response")
 
                 JSONObject(response)
-            } catch (ioEx: IOException) {
-                Timber.e("Network error when querying userinfo endpoint", ioEx)
-                throw AuthError.Network.FetchUserInfoNetworkException()
-            } catch (jsonEx: JSONException) {
-                Timber.e("Failed to parse userinfo response")
-                throw AuthError.Network.JSONParseException()
             }
+        } catch (e: AuthError.Network.NoAccessToken) {
+            _isAuthorized.value = false
+            return null
+        } catch (e: java.util.concurrent.CancellationException) {
+            return null
+        } catch (ioEx: IOException) {
+            Timber.e("Network error when querying userinfo endpoint $ioEx")
+            return null
+        } catch (jsonEx: JSONException) {
+            Timber.e("Failed to parse userinfo response")
+            return null
         }
     }
 }

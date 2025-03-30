@@ -1,4 +1,4 @@
-package com.louislu.pennbioinformatics.screen
+package com.louislu.pennbioinformatics.screen.menu
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -6,12 +6,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,11 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.louislu.pennbioinformatics.R
 import com.louislu.pennbioinformatics.auth.AuthViewModel
 import com.louislu.pennbioinformatics.ble.BleViewModel
+import com.louislu.pennbioinformatics.domain.model.UserInfo
 
 @Composable
 fun MenuScreenRoot(
@@ -41,15 +43,37 @@ fun MenuScreenRoot(
     bleViewModel: BleViewModel,
     navigateToLogin: () -> Unit,
     navigateToConnect: () -> Unit,
-    navigateToDataMonitor: () -> Unit
+    navigateToDataMonitor: (Long) -> Unit,
+    navigateToHistory: () -> Unit,
+    navigateToSelectGroup: () -> Unit
 ) {
+    val menuViewModel: MenuViewModel = hiltViewModel()
     val isConnected by bleViewModel.isConnected.collectAsState()
+    val userInfo by menuViewModel.userInfo.collectAsState()
+    val isAuthorized by authViewModel.isAuthorized.collectAsState()
+
+    // Listen for session creation success
+    LaunchedEffect(Unit) {
+        menuViewModel.newSessionCreated.collect { sessionId ->
+            navigateToDataMonitor(sessionId)
+        }
+    }
+
+    LaunchedEffect(isAuthorized) {
+        if (!isAuthorized) navigateToLogin()
+    }
 
     MenuScreen(
-        username = "(placeholder: TODO",
-        onNewSessionClicked = { /*TODO*/ },
-        onHistoryClicked = { /*TODO*/ },
-        onUploadClicked = { /*TODO*/ },
+        userInfo = userInfo, // TODO: replace with actual name if available
+        onNewSessionClicked = {
+            menuViewModel.createNewSession(
+                title = "New Session",           // TODO: make this editable or dynamic
+                description = "", // Set to empty first
+                deviceName = ""     // TODO: could be pulled from BLE
+            )
+        },
+        onHistoryClicked = { navigateToHistory() },
+        onUploadClicked = { /* TODO */ },
         onLogoutConfirmed = {
             authViewModel.logout()
             navigateToLogin()
@@ -57,21 +81,19 @@ fun MenuScreenRoot(
         pendingCount = -1,
         isUploading = false,
         isConnected = isConnected,
-        onDisconnect = {
-            bleViewModel.disconnect()
-        },
-        onConnect = {
-            navigateToConnect()
-        }
+        onDisconnect = { bleViewModel.disconnect() },
+        onConnect = { navigateToConnect() },
+        onChangeGroupClicked = { navigateToSelectGroup() }
     )
 }
 
 @Composable
 fun MenuScreen(
-    username: String,
+    userInfo: UserInfo?,
     onNewSessionClicked: () -> Unit,
     onHistoryClicked: () -> Unit,
     onUploadClicked: () -> Unit,
+    onChangeGroupClicked: () -> Unit,
     onLogoutConfirmed: () -> Unit,
     pendingCount: Int,
     isUploading: Boolean,
@@ -94,18 +116,23 @@ fun MenuScreen(
             ) {
                 Text(text = stringResource(R.string.the_bioinformatics_app), style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(text = "Hi, $username!", style = MaterialTheme.typography.titleLarge)
+                Text(text = userInfo?.let { "Hi, ${userInfo.nickname}!" } ?: "Loading user info...", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Start a session by clicking “New Session”", style = MaterialTheme.typography.labelLarge)
+//                Text(text = "Start a session by clicking “New Session”", style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
-                    enabled = isConnected,
+                    modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
+                    enabled = isConnected && userInfo != null,
                     onClick = onNewSessionClicked) { Text("New Session")
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onHistoryClicked) { Text("View History") }
+                Button(
+                    modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
+                    onClick = onHistoryClicked
+                ) { Text("View History") }
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
+                    modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
                     onClick = onUploadClicked,
                     enabled = pendingCount > 0 && !isUploading,
                 ) {
@@ -133,9 +160,18 @@ fun MenuScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                OutlinedButton(onClick = { openAlertDialog.value = true }) { Text("Logout") }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
+                    onClick = { onChangeGroupClicked() }
+                ) { Text("Change Group Selection") }
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
+                    onClick = { openAlertDialog.value = true }
+                ) { Text("Logout") }
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
+                    modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
                     colors = if (isConnected) ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     ) else ButtonDefaults.buttonColors(),
@@ -173,17 +209,27 @@ private fun LogoutConfirmAlertDialog(
 @Preview
 @Composable
 fun MenuScreenPreview() {
-    MenuScreen("John Doe", {}, {}, {}, {}, 10, false, false, {}, {})
+    val userInfo = UserInfo("","", "","","","","","John Doe")
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, false, {}, {})
+}
+
+@Preview
+@Composable
+fun MenuScreenPreviewConnected() {
+    val userInfo = UserInfo("","", "","","","","","John Doe")
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, true, {}, {})
 }
 
 @Preview
 @Composable
 fun MenuScreenPreviewUploading() {
-    MenuScreen("John Doe", {}, {}, {}, {}, 10, true, false, {}, {})
+    val userInfo = UserInfo("","", "","","","","","John Doe")
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, true, false, {}, {})
 }
 
 @Preview
 @Composable
 fun MenuScreenPreviewNoPending() {
-    MenuScreen("John Doe", {}, {}, {}, {}, 0, false, false, {}, {})
+    val userInfo = UserInfo("","", "","","","","","John Doe")
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 0, false, false, {}, {})
 }

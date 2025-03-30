@@ -27,9 +27,11 @@ import net.openid.appauth.AuthorizationResponse
 import net.openid.appauth.RegistrationResponse
 import net.openid.appauth.TokenResponse
 import org.json.JSONException
+import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
+import androidx.core.content.edit
 
 /**
  * An example persistence mechanism for an [AuthState] instance.
@@ -107,7 +109,7 @@ class AuthStateManager private constructor(context: Context) {
             try {
                 return AuthState.jsonDeserialize(currentState)
             } catch (ex: JSONException) {
-                Log.w(TAG, "Failed to deserialize stored auth state - discarding")
+                Timber.w("Failed to deserialize stored auth state - discarding")
                 return AuthState()
             }
         } finally {
@@ -117,16 +119,18 @@ class AuthStateManager private constructor(context: Context) {
 
     @AnyThread
     private fun writeState(state: AuthState?) {
+        Timber.i("Writing AuthState to shared preference...")
+        Timber.i("AuthState: $state")
+        Timber.i("KEY_STATE: ${state?.jsonSerializeString()}")
         mPrefsLock.lock()
         try {
-            val editor = mPrefs.edit()
-            if (state == null) {
-                editor.remove(KEY_STATE)
-            } else {
-                editor.putString(KEY_STATE, state.jsonSerializeString())
+            mPrefs.edit(commit = true) {
+                if (state == null) {
+                    remove(KEY_STATE)
+                } else {
+                    putString(KEY_STATE, state.jsonSerializeString())
+                }
             }
-
-            check(editor.commit()) { "Failed to write state to shared prefs" }
         } finally {
             mPrefsLock.unlock()
         }

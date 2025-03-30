@@ -14,7 +14,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import com.louislu.pennbioinformatics.ble.model.BioinfoEntry
 import com.louislu.pennbioinformatics.ble.model.BleDevice
@@ -27,9 +26,9 @@ import timber.log.Timber
 
 class BleRepositoryImpl(private val context: Context) : BleRepository {
 
-    private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-    private val bluetoothAdapter: BluetoothAdapter = bluetoothManager.adapter
-    private val scanner: BluetoothLeScanner? = bluetoothAdapter.bluetoothLeScanner
+    private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+    private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
+    private val scanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
 
     private val _scannedDevices = MutableStateFlow<List<BleDevice>>(emptyList())
     override fun getScannedDevices(): Flow<List<BleDevice>> = _scannedDevices
@@ -42,21 +41,30 @@ class BleRepositoryImpl(private val context: Context) : BleRepository {
     private val _isScanning = MutableStateFlow(false) // Flow to track scanning state
     override fun isScanning(): StateFlow<Boolean> = _isScanning.asStateFlow()
 
-    private val _isConnected = MutableStateFlow(false)
-    override fun isConnected(): StateFlow<Boolean> = _isConnected
+
 
     private var bioinfoBleManager: BioinfoBleManager = BioinfoBleManager(context)
+
+    override val isConnected = bioinfoBleManager.isConnected
+    override val isConnecting = bioinfoBleManager.isConnecting
 
     override fun getBioinfoData(): Flow<BioinfoEntry?> {
         return bioinfoBleManager.getBioinfoData()
     }
 
+    override fun isEnabled(): Boolean {
+        return bluetoothAdapter?.isEnabled == true
+    }
+
     @SuppressLint("MissingPermission")
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun startScan() {
-        // Check required permissions before scanning
-        ensurePermission(Manifest.permission.BLUETOOTH_SCAN) { throw BleScanPermissionNotGrantedException() }
-        ensurePermission(Manifest.permission.BLUETOOTH_CONNECT) { throw BleConnectPermissionNotGrantedException() }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ensurePermission(Manifest.permission.BLUETOOTH_SCAN) { throw BleScanPermissionNotGrantedException() }
+            ensurePermission(Manifest.permission.BLUETOOTH_CONNECT) { throw BleConnectPermissionNotGrantedException() }
+        } else {
+            ensurePermission(Manifest.permission.BLUETOOTH) { throw BleScanPermissionNotGrantedException() }
+            ensurePermission(Manifest.permission.ACCESS_COARSE_LOCATION) { throw BleScanPermissionNotGrantedException() }
+        }
 
         if (scanner == null) {
             Timber.e("BLE Scanner is NULL! Make sure Bluetooth is ON.")
@@ -107,11 +115,14 @@ class BleRepositoryImpl(private val context: Context) : BleRepository {
     }
 
     @SuppressLint("MissingPermission")
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun stopScan() {
-        // Ensure `BLUETOOTH_SCAN` permission before stopping scan
-        ensurePermission(Manifest.permission.BLUETOOTH_SCAN) { throw BleScanPermissionNotGrantedException() }
-        ensurePermission(Manifest.permission.BLUETOOTH_CONNECT) { throw BleConnectPermissionNotGrantedException() }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ensurePermission(Manifest.permission.BLUETOOTH_SCAN) { throw BleScanPermissionNotGrantedException() }
+            ensurePermission(Manifest.permission.BLUETOOTH_CONNECT) { throw BleConnectPermissionNotGrantedException() }
+        } else {
+            ensurePermission(Manifest.permission.BLUETOOTH) { throw BleScanPermissionNotGrantedException() }
+            ensurePermission(Manifest.permission.ACCESS_COARSE_LOCATION) { throw BleScanPermissionNotGrantedException() }
+        }
 
         if (_isScanning.value && scanCallback != null) {
             scanner?.stopScan(scanCallback!!)
@@ -131,20 +142,17 @@ class BleRepositoryImpl(private val context: Context) : BleRepository {
     }
 
     override fun connectToBioinfoDevice(device: BleDevice) {
-        val bluetoothDevice = bluetoothAdapter.getRemoteDevice(device.address)
+        val bluetoothDevice = bluetoothAdapter?.getRemoteDevice(device.address)
         if (bluetoothDevice == null) {
             Timber.e("Cannot connect: Device not found")
             return
         }
 
         bioinfoBleManager.connectToDevice(bluetoothDevice)
-
-        _isConnected.value = true
     }
 
-    override fun disconnectDevice() {
-        bioinfoBleManager?.disconnectDevice()
-        _isConnected.value = false
+    override suspend fun disconnectDevice() {
+        bioinfoBleManager.disconnectDevice()
     }
 
     // Extracted function to reduce duplicated permission checks

@@ -13,6 +13,7 @@ sealed class AuthError(message: String? = null, cause: Throwable? = null) : Thro
         class TokenRefreshFailed: Network()
         class FetchUserInfoNetworkException: Network()
         class JSONParseException: Network()
+        class NoAccessToken: Network()
     }
 
     /** Errors related to local authentication issues */

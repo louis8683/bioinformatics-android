@@ -1,15 +1,18 @@
 package com.louislu.pennbioinformatics.domain.model
 
 data class Session(
-    val localId: Long?,          // Primary key
-    val serverId: Long?,
-    val userId: String,        // User owning the session
-    val groupId: String?,      // Optional group association
-    val deviceMac: String,     // MAC address of the device
-    val startTimestamp: Long,  // Stored as epoch milliseconds (TIMESTAMPTZ)
-    val endTimestamp: Long?,   // Nullable for ongoing sessions
-    val description: String?,   // Optional session notes
+    val localId: Long?,          // Local Room primary key
+    val serverId: Long?,         // API session ID (nullable if offline)
+    val userId: String,          // Cognito user ID
+    val groupName: String?,        // Optional group association
+    val className: String,       // Class at time of session creation
+    val schoolName: String,      // School at time of session creation
+    val deviceName: String?,      // Device name
+    val startTimestamp: Long,    // Epoch millis
+    val endTimestamp: Long?,     // Nullable if ongoing
+    val title: String,           // Session title (required)
+    val description: String?,    // Optional
 
-    // local flags
-    val pendingUpload: Boolean
+    // Local-only
+    val pendingUpload: Boolean   // True if not yet uploaded to server
 )
