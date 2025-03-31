@@ -35,6 +35,10 @@ interface DataEntryDao {
 //    @Query("SELECT * FROM data_entries WHERE ongoing = 1")
 //    fun getAllOngoing(): Flow<List<DataEntryEntity>>
 
+
+    @Query("SELECT COUNT(*) FROM data_entries WHERE pendingUpload = 1")
+    suspend fun getPendingUploadCount(): Int
+
     @Query("SELECT * FROM data_entries WHERE pendingUpload = 1")
     suspend fun getAllPendingUpload(): List<DataEntryEntity>
 }

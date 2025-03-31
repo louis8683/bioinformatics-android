@@ -69,17 +69,18 @@ class AuthViewModel @Inject constructor(
             try {
                 withContext(Dispatchers.IO) {
                     authRepository.initializeAppAuth()
-                    try {
-                        authRepository.getAccessToken()
-                    } catch (e: AuthError.Network.NoAccessToken) {
-                        Timber.i("No access token, redo login")
-                    } catch (e: Exception) {
-                        Timber.i("Other exception: $e")
-                    }
+                    authRepository.getAccessToken()
+                        .onSuccess {
+                            Timber.i("Access token updated")
+                        }
+                        .onFailure { e ->
+                            Timber.i("Exception: $e")
+                        }
                 }
             } catch (e: Exception) {
                 Timber.i("Error during initialization of AppAuth: $e")
             }
+            Timber.i("Initialization completed")
             _initializing.value = false
         }
     }
@@ -104,7 +105,7 @@ class AuthViewModel @Inject constructor(
     fun updateUserInfo(schoolName:String, className: String, groupName: String) {
         viewModelScope.launch {
             try {
-                authRepository.updateUserInfo(schoolName, className, groupName)
+                authRepository.updateUserInfo(schoolName, className, groupName).getOrThrow()
                 getUserInfo()
             } catch (e: Exception) {
                 Timber.i("Exception: $e")

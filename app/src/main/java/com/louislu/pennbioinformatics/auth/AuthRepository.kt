@@ -17,9 +17,9 @@ interface AuthRepository {
 
     suspend fun getUserInfo(): UserInfo?
 
-    suspend fun updateUserInfo(schoolName: String, className: String, groupName: String)
+    suspend fun updateUserInfo(schoolName: String, className: String, groupName: String): Result<Unit>
 
-    suspend fun getAccessToken(): String
+    suspend fun getAccessToken(): Result<String>
 
     fun logout()
 

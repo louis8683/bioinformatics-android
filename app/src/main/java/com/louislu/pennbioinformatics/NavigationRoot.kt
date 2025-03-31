@@ -1,9 +1,12 @@
 package com.louislu.pennbioinformatics
 
+import android.annotation.SuppressLint
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -21,9 +24,10 @@ import com.louislu.pennbioinformatics.screen.history.EntryHistoryScreenRoot
 import com.louislu.pennbioinformatics.screen.history.EntryHistoryViewModel
 import com.louislu.pennbioinformatics.screen.login.LoginScreenRoot
 import com.louislu.pennbioinformatics.screen.menu.MenuScreenRoot
-import com.louislu.pennbioinformatics.screen.PermissionScreenRoot
+import com.louislu.pennbioinformatics.screen.permission.PermissionScreenRoot
 import com.louislu.pennbioinformatics.screen.group.SelectGroupScreenRoot
 import com.louislu.pennbioinformatics.screen.history.SessionHistoryScreenRoot
+import timber.log.Timber
 
 @Composable
 fun NavigationRoot(authViewModel: AuthViewModel, bleViewModel: BleViewModel, onLoginClicked: () -> Unit) {
@@ -78,11 +82,23 @@ private fun NavGraphBuilder.mainGraph(
         composable(route = "connectScreen") {
             ConnectDeviceScreenRoot(
                 bleViewModel = bleViewModel,
-                onConnected = { navController.navigate("menuScreen") },
-                onSkip = { navController.navigate("menuScreen") }
+                onConnected = {
+                    navController.navigate("menuScreen") {
+                        popUpTo(0)
+                        launchSingleTop = true
+                    }
+                },
+                onSkip = {
+                    navController.navigate("menuScreen") {
+                        popUpTo(0)
+                        launchSingleTop = true
+                    }
+                }
             )
         }
         composable(route = "menuScreen") {
+            logBackstack(navController)
+
             MenuScreenRoot(
                 authViewModel = authViewModel,
                 bleViewModel = bleViewModel,
@@ -101,25 +117,44 @@ private fun NavGraphBuilder.mainGraph(
             val viewModel: DataMonitorViewModel = hiltViewModel(backStackEntry)
             DataMonitorScreenRoot(
                 dataMonitorViewModel = viewModel,
-                navigateToMenu = { navController.navigate("menuScreen") }
+                navigateToMenu = {
+                    navController.navigate("menuScreen") {
+                        popUpTo(0)
+                        launchSingleTop = true
+                    }
+                }
             )
         }
 
         composable(route = "sessionHistoryScreen") {
             SessionHistoryScreenRoot(
-                navigateToEntries = { serverId -> navController.navigate("entriesHistoryScreen/$serverId") },
+                navigateToEntries = { id, isServerId ->
+                    navController.navigate("entriesHistoryScreen/$id?isServerId=${isServerId}")
+                },
                 onBackPressed = { navController.popBackStack() }
             )
         }
         composable(
-            route = "entriesHistoryScreen/{sessionServerId}",
-            arguments = listOf(navArgument("sessionServerId") { type = NavType.LongType })
+            route = "entriesHistoryScreen/{id}?isServerId={isServerId}",
+            arguments = listOf(
+                navArgument("id") { type = NavType.LongType },
+                navArgument("isServerId") {
+                    type = NavType.BoolType
+                    defaultValue = true // Defaults to server ID
+                }
+            )
         ) { backStackEntry ->
             val viewModel: EntryHistoryViewModel = hiltViewModel(backStackEntry)
-            EntryHistoryScreenRoot (
+            EntryHistoryScreenRoot(
                 entryHistoryViewModel = viewModel,
                 onBackPressed = { navController.popBackStack() }
             )
         }
     }
+}
+
+@SuppressLint("RestrictedApi")
+private fun logBackstack(navController: NavController) {
+    val backstackEntries = navController.currentBackStack.value.map { it.destination.route }
+    Timber.i("Backstack: $backstackEntries")
 }

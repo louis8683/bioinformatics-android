@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.location.Location
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,12 +34,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,9 +58,13 @@ import com.google.android.gms.location.LocationServices
 import com.louislu.pennbioinformatics.domain.model.DataEntry
 import com.louislu.pennbioinformatics.domain.model.Session
 import com.louislu.pennbioinformatics.domain.model.generateFakeDataEntries
-import com.louislu.pennbioinformatics.screen.SessionEndedScreen
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import timber.log.Timber
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -68,6 +80,9 @@ fun DataMonitorScreenRoot(
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
     var location by remember { mutableStateOf<Location?>(null) }
 
+    val isUpdating by dataMonitorViewModel.isUpdating.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+
     LaunchedEffect(Unit) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             fusedLocationClient.lastLocation
@@ -75,6 +90,8 @@ fun DataMonitorScreenRoot(
         } else {
             // TODO: handle the case when permission is not granted (should be a rare case)
         }
+
+        dataMonitorViewModel.startSession()
     }
 
     val navController = rememberNavController()
@@ -92,20 +109,26 @@ fun DataMonitorScreenRoot(
                 data = dataEntry,
                 session = session,
                 onEndSessionConfirmed = {
+                    dataMonitorViewModel.stopSession()
                     dataMonitorViewModel.syncPendingAndNavigate()
                     // TODO: add a loading indicator
                 },
-                onDescriptionUpdated = { dataMonitorViewModel.updateDescription(it) }
+                onTitleUpdated = { dataMonitorViewModel.updateSession(title = it) },
+                onDescriptionUpdated = { dataMonitorViewModel.updateSession(description = it) }
             )
         }
         composable(route = "sessionEnded") {
             SessionEndedScreen(
+                initialTitle = session?.title ?: "",
                 initialDescription = session?.description ?: "",
-                onUpdateClicked = {
-                    dataMonitorViewModel.updateDescription(it)
-                    navigateToMenu() // TODO: make sure this is done after the update has finished
+                onUpdateClicked = { title, description ->
+                    coroutineScope.launch {
+                        dataMonitorViewModel.updateSession(title, description)
+                        dataMonitorViewModel.isUpdating.first{ !it }
+                        navigateToMenu()
+                    }
                 },
-                onSkipClicked = { navigateToMenu() }
+                isUpdating = isUpdating
             )
         }
     }
@@ -116,14 +139,15 @@ fun DataMonitorScreen(
     data: DataEntry?,
     session: Session?,
     onEndSessionConfirmed: () -> Unit,
+    onTitleUpdated: (String) -> Unit,
     onDescriptionUpdated: (String) -> Unit
-    // TODO: add a onTitleUpdated
     // TODO: what if internet is lost halfway? can "createSession" update the session?
 ) {
     var secondsElapsed by remember { mutableLongStateOf(0) }
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     val openAlertDialog = remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(session) {
         while (isActive) {
@@ -132,17 +156,20 @@ fun DataMonitorScreen(
             delay(1000L)
         }
     }
-
-    LaunchedEffect(description) {
-        onDescriptionUpdated(description)
-    }
+    LaunchedEffect(title) { onTitleUpdated(title) }
+    LaunchedEffect(description) { onDescriptionUpdated(description) }
 
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = {
+                        focusManager.clearFocus()
+                    })
+                },
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -176,19 +203,17 @@ fun DataMonitorScreen(
                     ) {
                         SensorDataDisplay(
                             label = "PM2.5",
-                            value = "${data?.pm25level?.let { 
-                                if (it.roundToInt() == -1) "N/A"
-                                else (it * 10).roundToInt() / 10.0 
-                            } ?: "--"}",
+                            value = "${data?.pm25level?.let {
+                                (it * 10).roundToInt() / 10.0 
+                            } ?: "N/A"}",
                             unit = "µg/m³"
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         SensorDataDisplay(
                             label = "Temp",
                             value = "${data?.temperature?.let { 
-                                if (it == Float.NEGATIVE_INFINITY) "N/A"
-                                else (it * 10).roundToInt() / 10.0 
-                            }}",
+                                (it * 10).roundToInt() / 10.0 
+                            } ?: "N/A"}",
                             unit = "°C"
                         )
                     }
@@ -199,18 +224,16 @@ fun DataMonitorScreen(
                         SensorDataDisplay(
                             label = "CO",
                             value = "${data?.coLevel?.let {
-                                if (it == Float.NEGATIVE_INFINITY) "N/A"
-                                else (it * 10).roundToInt() / 10.0 
-                            }}",
+                                (it * 10).roundToInt() / 10.0 
+                            } ?: "N/A"}",
                             unit = "ppm"
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         SensorDataDisplay(
                             label = "Hum",
                             value = "${data?.humidity?.let {
-                                if (it == Float.NEGATIVE_INFINITY) "N/A"
-                                else (it * 1000).roundToInt() / 10.0 
-                            }}",
+                                (it * 1000).roundToInt() / 10.0 
+                            } ?: "N/A"}",
                             unit = "%"
                         )
                     }
@@ -218,25 +241,22 @@ fun DataMonitorScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
-            OutlinedTextField(
-                value = title,
+
+
+            TitleTextField(
+                title = title,
                 onValueChange = { title = it },
-                placeholder = { Text(text = "Enter session title here") },
-                label = { Text("Session Title") },
-                maxLines = 1,
-//                minLines = 1,
+                focusManager = focusManager,
                 modifier = Modifier
                     .wrapContentHeight()
                     .fillMaxWidth()
             )
+
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = description,
+
+            DescriptionTextField(
+                description = description,
                 onValueChange = { description = it },
-                placeholder = { Text(text = "Enter observations here") },
-                label = { Text("Observation") },
-//                maxLines = 5,
-//                minLines = 5,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -321,17 +341,6 @@ fun SensorDataDisplay(
     }
 }
 
-private fun formatElapsedTime(seconds: Long): String {
-    val hours = seconds / 3600
-    val minutes = (seconds % 3600) / 60
-    val secs = seconds % 60
-    return String.format(Locale.US,"%02d:%02d:%02d", hours, minutes, secs)
-}
-
-private fun formatLocation(latitude: Double, longitude: Double): String {
-    return String.format(Locale.US, "(%.4f, %.4f)", latitude, longitude)
-}
-
 @Composable
 private fun EndSessionConfirmAlertDialog(
     onConfirm: () -> Unit,
@@ -344,6 +353,78 @@ private fun EndSessionConfirmAlertDialog(
         confirmButton = { TextButton(onClick = onConfirm) { Text("Confirm") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+@Composable
+fun TitleTextField(
+    title: String,
+    onValueChange: (String) -> Unit,
+    focusManager: FocusManager,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = title,
+        onValueChange = onValueChange,
+        placeholder = { Text(text = "Enter session title here") },
+        label = { Text("Session Title") },
+        maxLines = 1,
+        keyboardOptions = KeyboardOptions.Default.copy(
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(onDone = {
+            focusManager.clearFocus()
+        }),
+        modifier = modifier
+    )
+}
+
+@Composable
+fun DescriptionTextField(
+    description: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = description,
+        onValueChange = onValueChange,
+        placeholder = { Text(text = "Enter observations here") },
+        label = { Text("Observation") },
+        modifier = modifier
+    )
+}
+
+@Composable
+fun QuitAlertDialog(
+    onDismiss: () -> Unit,
+    onConfirmClicked: () -> Unit,
+    onDismissClicked: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Quit App") },
+        text = { Text("Are you sure you want to quit the app?") },
+        confirmButton = {
+            TextButton(onClick = onConfirmClicked) {
+                Text("Confirm")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissClicked) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+private fun formatElapsedTime(seconds: Long): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return String.format(Locale.US,"%02d:%02d:%02d", hours, minutes, secs)
+}
+
+private fun formatLocation(latitude: Double, longitude: Double): String {
+    return String.format(Locale.US, "(%.4f, %.4f)", latitude, longitude)
 }
 
 @Preview
@@ -382,7 +463,7 @@ fun DataMonitorScreenPreview() {
     val dataEntry = generateFakeDataEntries(1)[0]
 
 
-    DataMonitorScreen(dataEntry.copy(pm25level = 8000.0f), mockSession(), {}, {})
+    DataMonitorScreen(dataEntry.copy(pm25level = 8000.0f), mockSession(), {}, {}, {})
 }
 
 @Preview(showBackground = true)
@@ -396,5 +477,5 @@ fun DataMonitorScreenPreviewNull() {
         coLevel = null,
         temperature = null,
         humidity = null
-    ), mockSession(), {}, {})
+    ), mockSession(), {}, {}, {})
 }

@@ -10,7 +10,7 @@ import com.louislu.pennbioinformatics.data.session.local.SessionEntity
 
 @Database(
     entities = [SessionEntity::class, DataEntryEntity::class],
-    version = 1
+    version = 2
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao

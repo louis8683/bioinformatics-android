@@ -79,6 +79,9 @@ fun EntryHistoryScreen(
             ) {
                 Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge)
                 Text(session?.title ?: "Entries", style = MaterialTheme.typography.titleLarge)
+                Text("Date: ${
+                    session?.let { formatEpochMillisToDate(it.startTimestamp) }
+                }", style = MaterialTheme.typography.labelLarge)
                 Text("Click \"Export\" to download the session", style = MaterialTheme.typography.labelLarge)
             }
 
@@ -171,7 +174,7 @@ fun DataEntryRow(entry: DataEntry, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         TableCell(
-            text = formatEpochMillis(entry.timestamp),
+            text = formatEpochMillisToHHMMSS(entry.timestamp),
             modifier = Modifier.weight(1.5f))
         TableCell(
             text = "${entry.pm25level?.let { (it * 10).roundToInt() / 10.0 } ?: "-"}",
@@ -205,11 +208,17 @@ fun TableCell(text: String, modifier: Modifier) {
 }
 
 
-
-private fun formatEpochMillis(epochMillis: Long): String {
+private fun formatEpochMillisToHHMMSS(epochMillis: Long): String {
     val instant = Instant.ofEpochMilli(epochMillis)
     val zonedDateTime = instant.atZone(ZoneId.systemDefault())
     val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+    return formatter.format(zonedDateTime)
+}
+
+private fun formatEpochMillisToDate(epochMillis: Long): String {
+    val instant = Instant.ofEpochMilli(epochMillis)
+    val zonedDateTime = instant.atZone(ZoneId.systemDefault())
+    val formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy")
     return formatter.format(zonedDateTime)
 }
 

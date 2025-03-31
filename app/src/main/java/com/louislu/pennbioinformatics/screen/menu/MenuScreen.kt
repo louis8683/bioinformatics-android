@@ -1,5 +1,7 @@
 package com.louislu.pennbioinformatics.screen.menu
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -25,9 +31,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -36,6 +45,8 @@ import com.louislu.pennbioinformatics.R
 import com.louislu.pennbioinformatics.auth.AuthViewModel
 import com.louislu.pennbioinformatics.ble.BleViewModel
 import com.louislu.pennbioinformatics.domain.model.UserInfo
+import com.louislu.pennbioinformatics.screen.monitor.QuitAlertDialog
+import kotlinx.coroutines.launch
 
 @Composable
 fun MenuScreenRoot(
@@ -51,6 +62,16 @@ fun MenuScreenRoot(
     val isConnected by bleViewModel.isConnected.collectAsState()
     val userInfo by menuViewModel.userInfo.collectAsState()
     val isAuthorized by authViewModel.isAuthorized.collectAsState()
+    var displayNoBluetoothSnackbar by remember { mutableStateOf(false) }
+    var showQuitDialog by remember { mutableStateOf(false) }
+    val pendingCount by menuViewModel.numPendingUpload.collectAsState()
+    val isUploading by menuViewModel.isUploading.collectAsState()
+
+    val context = LocalContext.current
+
+    BackHandler {
+        showQuitDialog = true
+    }
 
     // Listen for session creation success
     LaunchedEffect(Unit) {
@@ -64,26 +85,36 @@ fun MenuScreenRoot(
     }
 
     MenuScreen(
-        userInfo = userInfo, // TODO: replace with actual name if available
+        userInfo = userInfo,
         onNewSessionClicked = {
             menuViewModel.createNewSession(
-                title = "New Session",           // TODO: make this editable or dynamic
-                description = "", // Set to empty first
+                title = "",
+                description = "",
                 deviceName = ""     // TODO: could be pulled from BLE
             )
         },
         onHistoryClicked = { navigateToHistory() },
-        onUploadClicked = { /* TODO */ },
+        onUploadClicked = { menuViewModel.syncAll() },
         onLogoutConfirmed = {
             authViewModel.logout()
             navigateToLogin()
         },
-        pendingCount = -1,
-        isUploading = false,
+        pendingCount = pendingCount,
+        isUploading = isUploading,
         isConnected = isConnected,
         onDisconnect = { bleViewModel.disconnect() },
-        onConnect = { navigateToConnect() },
-        onChangeGroupClicked = { navigateToSelectGroup() }
+        onConnect = {
+            if (bleViewModel.isEnabled) navigateToConnect()
+            else displayNoBluetoothSnackbar = true
+        },
+        onChangeGroupClicked = { navigateToSelectGroup() },
+        displayNoBluetoothSnackbar = displayNoBluetoothSnackbar,
+        onNoBluetoothSnackbarDismissed = { displayNoBluetoothSnackbar = false },
+        displayQuitAlertDialog = showQuitDialog,
+        onAlertDialogOptionSelected = { quit ->
+            if (quit) { (context as? Activity)?.finish() }
+            else showQuitDialog = false
+        }
     )
 }
 
@@ -99,11 +130,37 @@ fun MenuScreen(
     isUploading: Boolean,
     isConnected: Boolean,
     onDisconnect: () -> Unit,
-    onConnect: () -> Unit
+    onConnect: () -> Unit,
+    displayNoBluetoothSnackbar: Boolean,
+    onNoBluetoothSnackbarDismissed: () -> Unit,
+    displayQuitAlertDialog: Boolean,
+    onAlertDialogOptionSelected: (Boolean) -> Unit
 ) {
-    val openAlertDialog = remember { mutableStateOf(false) }
+    val openLogoutAlertDialog = remember { mutableStateOf(false) }
 
-    Scaffold { innerPadding ->
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(displayNoBluetoothSnackbar) {
+        if (displayNoBluetoothSnackbar) {
+            coroutineScope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = "Please enable Bluetooth from device settings.",
+                    actionLabel = "Dismiss",
+                    duration = SnackbarDuration.Indefinite
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    onNoBluetoothSnackbarDismissed()
+                }
+            }
+        }
+    }
+
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
+        }
+    ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -167,7 +224,7 @@ fun MenuScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
-                    onClick = { openAlertDialog.value = true }
+                    onClick = { openLogoutAlertDialog.value = true }
                 ) { Text("Logout") }
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
@@ -183,10 +240,18 @@ fun MenuScreen(
     }
 
     when {
-        openAlertDialog.value -> {
+        openLogoutAlertDialog.value -> {
             LogoutConfirmAlertDialog(
                 onConfirm = onLogoutConfirmed,
-                onDismiss = { openAlertDialog.value = false }
+                onDismiss = { openLogoutAlertDialog.value = false }
+            )
+        }
+
+        displayQuitAlertDialog -> {
+            QuitAlertDialog(
+                onDismiss = { onAlertDialogOptionSelected(false) },
+                onConfirmClicked = { onAlertDialogOptionSelected(true) },
+                onDismissClicked = { onAlertDialogOptionSelected(false) },
             )
         }
     }
@@ -210,26 +275,26 @@ private fun LogoutConfirmAlertDialog(
 @Composable
 fun MenuScreenPreview() {
     val userInfo = UserInfo("","", "","","","","","John Doe")
-    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, false, {}, {})
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, false, {}, {}, false, {}, false, {})
 }
 
 @Preview
 @Composable
 fun MenuScreenPreviewConnected() {
     val userInfo = UserInfo("","", "","","","","","John Doe")
-    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, true, {}, {})
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, true, {}, {}, false, {}, false, {})
 }
 
 @Preview
 @Composable
 fun MenuScreenPreviewUploading() {
     val userInfo = UserInfo("","", "","","","","","John Doe")
-    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, true, false, {}, {})
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, true, false, {}, {}, false, {}, false, {})
 }
 
 @Preview
 @Composable
 fun MenuScreenPreviewNoPending() {
     val userInfo = UserInfo("","", "","","","","","John Doe")
-    MenuScreen(userInfo, {}, {}, {}, {}, {}, 0, false, false, {}, {})
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 0, false, false, {}, {}, false, {}, false, {})
 }

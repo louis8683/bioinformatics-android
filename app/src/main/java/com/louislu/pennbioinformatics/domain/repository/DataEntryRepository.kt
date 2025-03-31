@@ -13,5 +13,7 @@ interface DataEntryRepository {
 
     fun getLatestBySession(localSessionId: Long? = null, remoteSessionId: Long? = null): Flow<DataEntry?>
 
+    suspend fun getPendingUploadCount(): Int
+
     suspend fun syncPendingUploads()
 }

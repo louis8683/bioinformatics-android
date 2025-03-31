@@ -11,6 +11,8 @@ interface SessionRepository {
 
     suspend fun upsert(session: Session): Long
 
+    suspend fun getPendingUploadCount(): Int
+
     suspend fun syncPendingUploads()
 
     suspend fun createSession(

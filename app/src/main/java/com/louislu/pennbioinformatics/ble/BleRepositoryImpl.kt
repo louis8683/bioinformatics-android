@@ -88,7 +88,6 @@ class BleRepositoryImpl(private val context: Context) : BleRepository {
                 _scannedDevices.update { currentList ->
                     if (newDevice !in currentList) currentList + newDevice else currentList
                 }
-                Timber.i("Device Found: Name=${device.name ?: "Unknown"}, Address=${device.address}")
             }
 
             override fun onScanFailed(errorCode: Int) {

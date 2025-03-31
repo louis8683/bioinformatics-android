@@ -12,15 +12,20 @@ import com.louislu.pennbioinformatics.domain.repository.DataEntryRepository
 import com.louislu.pennbioinformatics.domain.repository.LocationRepository
 import com.louislu.pennbioinformatics.domain.repository.SessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 @HiltViewModel
 class DataMonitorViewModel @Inject constructor(
@@ -56,34 +61,43 @@ class DataMonitorViewModel @Inject constructor(
     )
     val latestDataEntry: StateFlow<DataEntry?> = _latestDataEntry
 
-//    private val bioInfoEntry: StateFlow<BioinfoEntry?> = bleRepository.getBioinfoData()
-//        .stateIn(viewModelScope, SharingStarted.Lazily, null)
-
     private var bioInfoEntry: BioinfoEntry? = null
-
 
     private val _navigateToSessionEnded = MutableSharedFlow<Unit>()
     val navigateToSessionEnded: SharedFlow<Unit> = _navigateToSessionEnded
 
-    init {
-        startNewSession()
+    private var isMonitoring = true
 
+    private val _isUpdating = MutableStateFlow(false)
+    val isUpdating: StateFlow<Boolean> = _isUpdating
+
+    init {
         viewModelScope.launch {
             bleRepository.getBioinfoData().collect {
                 Timber.d("Bioinfo Data Received: $it")
-//                Timber.d("bioInfoEntry value: ${bioInfoEntry.value}")
                 bioInfoEntry = it
             }
         }
     }
 
-    fun updateDescription(content: String) {
+    fun updateSession(title: String? = null, description: String? = null) {
+        if (title == null && description == null) return
         viewModelScope.launch {
+            _isUpdating.value = true
             _currentSession.value?.let {
-                sessionRepository.upsert(session = it.copy(description = content)) }
+                if (title != null && description != null) {
+                    sessionRepository.upsert(session = it.copy(title = title, description = description))
+                }
+                else if (title != null) {
+                    sessionRepository.upsert(session = it.copy(title = title))
+                }
+                else if (description != null) {
+                    sessionRepository.upsert(session = it.copy(description = description))
+                }
+            }
+            _isUpdating.value = false
         }
     }
-
 
     fun syncPendingAndNavigate() {
         viewModelScope.launch {
@@ -100,17 +114,18 @@ class DataMonitorViewModel @Inject constructor(
         }
     }
 
-    private fun startNewSession() {
-        viewModelScope.launch {
-            startDataMonitoring()
-        }
+    fun stopSession() {
+        isMonitoring = false
     }
 
-    private fun startDataMonitoring() {
+    fun startSession() {
+        isMonitoring = true
         viewModelScope.launch {
-            while (true) {
-                collectAndStoreData()
-                delay(DATA_COLLECTION_INTERVAL_MS)
+            withContext(Dispatchers.IO) {
+                while (isMonitoring) {
+                    collectAndStoreData()
+                    delay(DATA_COLLECTION_INTERVAL_MS)
+                }
             }
         }
     }
@@ -118,7 +133,7 @@ class DataMonitorViewModel @Inject constructor(
     private suspend fun collectAndStoreData() {
         val location = locationRepository.getLastLocation()
         val timestamp = System.currentTimeMillis()
-        val userId = authRepository.getUserInfo()?.userId ?: throw IllegalStateException() // TODO: make sure this doesn't happen
+        val userId = authRepository.getUserInfo()?.userId ?: "" // TODO: make sure this doesn't happen
 
         Timber.i("location: $location")
         Timber.i("bioInfoEntry: $bioInfoEntry")
@@ -137,10 +152,22 @@ class DataMonitorViewModel @Inject constructor(
                 timestamp = timestamp,
                 latitude = location?.latitude,
                 longitude = location?.longitude,
-                coLevel = bioInfoEntry?.coConcentration,
-                pm25level = bioInfoEntry?.pm25,
-                temperature = bioInfoEntry?.temperature,
-                humidity = bioInfoEntry?.humidity,
+                coLevel = bioInfoEntry?.let {
+                    if (it.coConcentration == Float.NEGATIVE_INFINITY) null
+                    else it.coConcentration
+                },
+                pm25level = bioInfoEntry?.let{
+                    if (it.pm25.roundToInt() == -1) null
+                    else it.pm25
+                },
+                temperature = bioInfoEntry?.let{
+                    if (it.temperature == Float.NEGATIVE_INFINITY) null
+                    else it.temperature
+                },
+                humidity = bioInfoEntry?.let{
+                    if (it.humidity == Float.NEGATIVE_INFINITY) null
+                    else it.humidity
+                },
                 pendingUpload = true
             )
 

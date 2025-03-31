@@ -97,8 +97,9 @@ object AppModule {
     fun provideDataEntryRepository(
         dataEntryDao: DataEntryDao,
         dataEntryApiService: DataEntryApiService,
-        authRepository: AuthRepository
+        authRepository: AuthRepository,
+        sessionRepository: SessionRepository
     ): DataEntryRepository {
-        return DataEntryRepositoryImpl(dataEntryDao, dataEntryApiService, authRepository)
+        return DataEntryRepositoryImpl(dataEntryDao, dataEntryApiService, authRepository, sessionRepository)
     }
 }

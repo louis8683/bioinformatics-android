@@ -40,7 +40,7 @@ import kotlin.random.Random
 
 @Composable
 fun SessionHistoryScreenRoot(
-    navigateToEntries: (Long) -> Unit,
+    navigateToEntries: (id: Long, isServerId: Boolean) -> Unit,
     onBackPressed: () -> Unit
 ) {
     val viewModel: SessionHistoryViewModel = hiltViewModel()
@@ -49,8 +49,11 @@ fun SessionHistoryScreenRoot(
 
     SessionHistoryScreen(
         sessions = sessions,
-        onSelect = { sessionId ->
-            navigateToEntries(sessionId)
+        onSelect = { session ->
+            session.serverId?.let { navigateToEntries(it, true) }
+                ?: session.localId?.let {
+                    navigateToEntries(it, false)
+                } ?: Timber.i("Either serverId or localId has to be non-null")
         },
         isLoading = isLoading, // or use a loading state if you add one
         onBackClicked = onBackPressed
@@ -61,7 +64,7 @@ fun SessionHistoryScreenRoot(
 @Composable
 fun SessionHistoryScreen(
     sessions: List<Session>,
-    onSelect: (Long) -> Unit,
+    onSelect: (Session) -> Unit,
     isLoading: Boolean,
     onBackClicked: () -> Unit
 ) {
@@ -112,7 +115,7 @@ fun SessionHistoryScreen(
                                 style = MaterialTheme.typography.headlineSmall
                             ) },
                             overlineContent = { Text(
-                                "Start time: ${formatEpochMillis(session.startTimestamp)}",
+                                "Start time: ${formatEpochMillisToHHMMSS(session.startTimestamp)}",
                                 style = MaterialTheme.typography.bodySmall
                             ) },
 //                            supportingContent = { Text(
@@ -128,9 +131,7 @@ fun SessionHistoryScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     selectedSession = session
-                                    session.serverId?.let {
-                                        onSelect(it)
-                                    } ?: Timber.e("Server ID shouldn't be null")
+                                    onSelect(session)
                                 }
                         )
                         HorizontalDivider()
@@ -163,7 +164,7 @@ fun SessionHistoryScreen(
     }
 }
 
-private fun formatEpochMillis(epochMillis: Long): String {
+private fun formatEpochMillisToHHMMSS(epochMillis: Long): String {
     val instant = Instant.ofEpochMilli(epochMillis)
     val zonedDateTime = instant.atZone(ZoneId.systemDefault())
     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")

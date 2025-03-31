@@ -4,15 +4,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.louislu.pennbioinformatics.auth.AuthRepository
 import com.louislu.pennbioinformatics.domain.model.UserInfo
+import com.louislu.pennbioinformatics.domain.repository.BleRepository
+import com.louislu.pennbioinformatics.domain.repository.DataEntryRepository
 import com.louislu.pennbioinformatics.domain.repository.SessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import net.openid.appauth.AuthorizationException
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -20,6 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MenuViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
+    private val dataEntryRepository: DataEntryRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
@@ -29,14 +33,25 @@ class MenuViewModel @Inject constructor(
     private val _newSessionCreated = MutableSharedFlow<Long>()
     val newSessionCreated: SharedFlow<Long> = _newSessionCreated.asSharedFlow()
 
+    private val _numPendingUpload = MutableStateFlow<Int>(0)
+    val numPendingUpload: StateFlow<Int> = _numPendingUpload
+
+    private val _isUploading = MutableStateFlow(false)
+    val isUploading: StateFlow<Boolean> = _isUploading
+
     init {
         viewModelScope.launch {
-            try {
-                val user = authRepository.getUserInfo()
-                _userInfo.value = user
-            } catch (e: Exception) {
-                Timber.i("Exception getting user info: $e")
+            withContext(Dispatchers.IO) {
+                try {
+                    val user = authRepository.getUserInfo()
+                    _userInfo.value = user
+                } catch (e: Exception) {
+                    Timber.i("Exception getting user info: $e")
+                }
             }
+            _numPendingUpload.value =
+                sessionRepository.getPendingUploadCount() +
+                dataEntryRepository.getPendingUploadCount()
         }
     }
 
@@ -66,6 +81,22 @@ class MenuViewModel @Inject constructor(
             )
 
             _newSessionCreated.emit(sessionId)
+        }
+    }
+
+    fun syncAll() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                _isUploading.value = true
+                sessionRepository.syncPendingUploads()
+                dataEntryRepository.syncPendingUploads()
+                // TODO: a more complex syncing (one session -> its entries -> repeat)
+                // TODO: display error if no internet or failed
+                _numPendingUpload.value =
+                    sessionRepository.getPendingUploadCount() +
+                    dataEntryRepository.getPendingUploadCount()
+                _isUploading.value = false
+            }
         }
     }
 }

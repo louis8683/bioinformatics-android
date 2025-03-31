@@ -17,6 +17,9 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE serverId = :serverId LIMIT 1")
     fun getByServerId(serverId: Long): Flow<SessionEntity?>
 
+    @Query("SELECT COUNT(*) FROM sessions WHERE pendingUpload = 1")
+    suspend fun getPendingUploadCount(): Int
+
     @Query("SELECT * FROM sessions WHERE pendingUpload = 1")
     suspend fun getAllPendingUpload(): List<SessionEntity>
 

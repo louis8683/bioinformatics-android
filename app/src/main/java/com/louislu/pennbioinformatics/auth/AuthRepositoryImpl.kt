@@ -201,50 +201,57 @@ class AuthRepositoryImpl(
         } ?: loadUserInfoFromDataStore()
     }
 
-    override suspend fun updateUserInfo(schoolName: String, className: String, groupName: String) {
+    override suspend fun updateUserInfo(
+        schoolName: String,
+        className: String,
+        groupName: String
+    ): Result<Unit> = runCatching {
 
-        val token = getAccessToken()
-        val request = UpdateUserInfoRequest(
-            access_token = token,
-            group_name = groupName,
-            class_name = className,
-            school_name = schoolName
-        )
-        userService.updateUserInfo("Bearer $token", request)
-        getUserInfo()?.let {
-            saveUserInfo(
-                it.copy(
-                    groupName = groupName,
-                    className = className,
-                    schoolName = schoolName
-                )
+        getAccessToken().onSuccess { token ->
+            val request = UpdateUserInfoRequest(
+                access_token = token,
+                group_name = groupName,
+                class_name = className,
+                school_name = schoolName
             )
-        }
+            userService.updateUserInfo("Bearer $token", request)
+            getUserInfo()?.let {
+                saveUserInfo(
+                    it.copy(
+                        groupName = groupName,
+                        className = className,
+                        schoolName = schoolName
+                    )
+                )
+            }
+        }.onFailure { throw it }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override suspend fun getAccessToken(): String = suspendCancellableCoroutine { cont ->
-        val authService = mAuthService
-            ?: return@suspendCancellableCoroutine cont.resumeWithException(AuthError.Local.AuthServiceNotInitialized())
+    override suspend fun getAccessToken(): Result<String> = runCatching {
+        suspendCancellableCoroutine { cont ->
+            val authService = mAuthService
+                ?: return@suspendCancellableCoroutine cont.resumeWithException(AuthError.Local.AuthServiceNotInitialized())
 
-        val authState = mAuthStateManager.current
+            val authState = mAuthStateManager.current
 
-        Timber.i("AuthState during start of getAccessToken: $authState")
-        Timber.i("isAuthorized: ${authState.isAuthorized}")
-        Timber.i("accessToken: ${authState.accessToken}")
-        Timber.i("refreshToken: ${authState.refreshToken}")
-        Timber.i("needsTokenRefresh: ${authState.needsTokenRefresh}")
-        Timber.i("scope: ${authState.scope}")
-
-        authState.performActionWithFreshTokens(authService) { accessToken, _, ex ->
-            _isAuthorized.value = authState.isAuthorized
-            when {
-                ex != null -> cont.resumeWithException(ex)
-                accessToken != null -> {
-
-                    cont.resume(accessToken) { CancellationException() }
+            Timber.i("AuthState during start of getAccessToken: $authState")
+            authState.performActionWithFreshTokens(authService) { accessToken, _, ex ->
+                _isAuthorized.value = authState.isAuthorized
+                when {
+                    ex != null -> {
+                        Timber.i("Exception: $ex")
+                        cont.resumeWithException(ex)
+                    }
+                    accessToken != null -> {
+                        Timber.i("Success: $accessToken")
+                        cont.resume(accessToken) { CancellationException() }
+                    }
+                    else -> {
+                        Timber.i("Other: no access token")
+                        cont.resumeWithException(AuthError.Network.NoAccessToken())
+                    }
                 }
-                else -> cont.resumeWithException(AuthError.Network.NoAccessToken())
             }
         }
     }
@@ -431,6 +438,9 @@ class AuthRepositoryImpl(
             return null
         } catch (jsonEx: JSONException) {
             Timber.e("Failed to parse userinfo response")
+            return null
+        } catch (e: Exception) {
+            Timber.e("Other exception: $e")
             return null
         }
     }

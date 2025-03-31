@@ -8,6 +8,7 @@ import com.louislu.pennbioinformatics.data.session.remote.SessionApiService
 import com.louislu.pennbioinformatics.domain.model.Session
 import com.louislu.pennbioinformatics.domain.repository.SessionRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
 import javax.inject.Inject
@@ -39,18 +40,24 @@ class SessionRepositoryImpl @Inject constructor(
 
     /*** Insert or Update a Session ***/
     override suspend fun upsert(session: Session): Long {
-        return sessionDao.upsert(session.toEntity())
+        Timber.i("Updating session: $session")
+        val result = sessionDao.upsert(session.toEntity())
+        Timber.i("Result: $result")
+        Timber.i("Updated session: ${sessionDao.getByLocalId(localId = result).firstOrNull()}")
+        return result
     }
 
-    /*** `syncPendingUploads()` is Not Implemented Yet ***/
+    override suspend fun getPendingUploadCount(): Int {
+        return sessionDao.getPendingUploadCount()
+    }
+
+    /*** syncPendingUploads() ***/
     override suspend fun syncPendingUploads() {
         val pendingSessions = sessionDao.getAllPendingUpload()
 
         for (entity in pendingSessions) {
             try {
                 val session = entity.toDomainModel()
-
-                // Reuse the original CreateSessionRequest
                 val request = CreateSessionRequest(
                     userId = session.userId,
                     groupName = session.groupName,
@@ -62,22 +69,29 @@ class SessionRepositoryImpl @Inject constructor(
                     description = session.description
                 )
 
-                val token = authRepository.getAccessToken()
-                val serverId = sessionApiService.createSession("Bearer $token", request).sessionId
+                authRepository.getAccessToken()
+                    .onFailure {
+                        return // TODO: return a Result indicating failure
+                    }
+                    .onSuccess { token ->
+                        val serverId = sessionApiService.createSession("Bearer $token", request).sessionId
 
-                // Optionally re-fetch full session from server (optional)
-                val sessionFromServer = sessionApiService.getSessionById("Bearer $token", serverId)
-                    .toDomainModel()
+                        Timber.i("Sync: server ID generated = $serverId")
+                        val sessionFromServer = sessionApiService.getSessionById("Bearer $token", serverId)
+                            .toDomainModel()
 
-                // Save back to Room with updated serverId and pendingUpload = false
-                sessionDao.upsert(
-                    sessionFromServer.copy(
-                        localId = session.localId, // preserve localId
-                        pendingUpload = false
-                    ).toEntity()
-                )
+                        Timber.i("Sync: refetched session = $sessionFromServer")
+
+                        // Save back to Room with updated serverId and pendingUpload = false
+                        sessionDao.upsert(
+                            sessionFromServer.copy(
+                                localId = session.localId, // preserve localId
+                                pendingUpload = false
+                            ).toEntity()
+                        )
+                    }
             } catch (e: Exception) {
-                Timber.e(e, "Failed to sync session with localId=${entity.localId}")
+                Timber.e(e, "Failed to sync session with localId=${entity.localId}, exception: $e")
                 // Skip and move to the next one
             }
         }
@@ -105,7 +119,7 @@ class SessionRepositoryImpl @Inject constructor(
         )
 
         return try {
-            val accessToken = authRepository.getAccessToken()
+            val accessToken = authRepository.getAccessToken().getOrThrow()
             val serverId = sessionApiService.createSession("Bearer $accessToken", request).sessionId
             Timber.i("Server Session ID: $serverId")
             val session = sessionApiService.getSessionById("Bearer $accessToken", serverId)
