@@ -23,7 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -34,7 +36,8 @@ fun SessionEndedScreen(
     initialTitle: String,
     initialDescription: String,
     onUpdateClicked: (String, String) -> Unit,
-    isUpdating: Boolean
+    isUpdating: Boolean,
+    connectionLost: Boolean
 ) {
     var title by remember { mutableStateOf(initialTitle) }
     var description by remember { mutableStateOf(initialDescription) }
@@ -59,12 +62,15 @@ fun SessionEndedScreen(
                         })
                     }
             ) {
-                Text(text = stringResource(R.string.the_bioinformatics_app), style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = "Session ended", style = MaterialTheme.typography.titleLarge)
+//                Text(text = stringResource(R.string.the_bioinformatics_app), style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(16.dp))
+                if (connectionLost)
+                    Text(text = "Session ended (device connection lost)", style = MaterialTheme.typography.titleLarge)
+                else
+                    Text(text = "Session ended", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(text = "Finalize your observation", style = MaterialTheme.typography.labelLarge)
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 TitleTextField(
                     title = title,
@@ -78,7 +84,9 @@ fun SessionEndedScreen(
                 DescriptionTextField(
                     description = description,
                     onValueChange = { description = it },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -96,5 +104,16 @@ fun SessionEndedScreen(
 @Preview
 @Composable
 fun SessionEndedScreenPreview() {
-    SessionEndedScreen("some title", "some description", { str1, str2 -> }, false)
+    SessionEndedScreen("some title", "some description", { str1, str2 -> }, false, false)
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+fun SessionEndedScreenSmallPreview() {
+    SessionEndedScreen("some title", "some description", { str1, str2 -> }, false, false)
 }

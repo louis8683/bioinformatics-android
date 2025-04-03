@@ -399,7 +399,9 @@ class AuthRepositoryImpl(
 
     private suspend fun fetchUserInfo(): JSONObject? {
         try {
-            val accessToken = getAccessToken()
+
+            val accessToken = getAccessToken().fold({ it }, {}) as String?
+            if (accessToken == null) return null
 
             val discovery: AuthorizationServiceDiscovery? =
                 mAuthStateManager.current.getAuthorizationServiceConfiguration()?.discoveryDoc
@@ -410,6 +412,7 @@ class AuthRepositoryImpl(
 
             Timber.d("Endpoint: %s", AuthorizationServiceConfiguration.WELL_KNOWN_PATH)
             Timber.d("User info endpoint: $userInfoEndpoint")
+            Timber.d("Access token: $accessToken")
 
             return withContext(Dispatchers.IO) {
                 Timber.d("Sending request with the Bearer token as: $accessToken")

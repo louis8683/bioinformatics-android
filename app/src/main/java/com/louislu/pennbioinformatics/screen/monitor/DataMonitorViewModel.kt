@@ -71,6 +71,8 @@ class DataMonitorViewModel @Inject constructor(
     private val _isUpdating = MutableStateFlow(false)
     val isUpdating: StateFlow<Boolean> = _isUpdating
 
+    val isConnected = bleRepository.isConnected
+
     init {
         viewModelScope.launch {
             bleRepository.getBioinfoData().collect {

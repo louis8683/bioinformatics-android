@@ -37,7 +37,7 @@ fun generateFakeDataEntries(count: Int = 5): List<DataEntry> {
             coLevel = Random.nextFloat() * 10,  // Simulating 0 - 10 ppm
             pm25level = Random.nextFloat() * 150,  // Simulating 0 - 150 µg/m³
             temperature = Random.nextFloat() * 40,  // Simulating 0 - 40°C
-            humidity = Random.nextFloat() * 100,  // Simulating 0 - 100%
+            humidity = Random.nextFloat(),  // Simulating 0 - 100%
 //            ongoing = Random.nextBoolean(),
             pendingUpload = Random.nextBoolean()
         )

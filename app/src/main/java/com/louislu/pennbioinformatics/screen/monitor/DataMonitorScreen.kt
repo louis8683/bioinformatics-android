@@ -1,8 +1,12 @@
 package com.louislu.pennbioinformatics.screen.monitor
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.view.View
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,6 +88,8 @@ fun DataMonitorScreenRoot(
     val isUpdating by dataMonitorViewModel.isUpdating.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
+    val isConnected by dataMonitorViewModel.isConnected.collectAsState()
+
     LaunchedEffect(Unit) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             fusedLocationClient.lastLocation
@@ -94,6 +101,14 @@ fun DataMonitorScreenRoot(
         dataMonitorViewModel.startSession()
     }
 
+    LaunchedEffect(isConnected) {
+        // TODO: indicate that a connection lost caused this
+        if (!isConnected) {
+            dataMonitorViewModel.stopSession()
+            dataMonitorViewModel.syncPendingAndNavigate()
+        }
+    }
+
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = "monitor") {
@@ -101,7 +116,7 @@ fun DataMonitorScreenRoot(
         composable(route = "monitor") {
             LaunchedEffect(Unit) {
                 dataMonitorViewModel.navigateToSessionEnded.collect {
-                    navController.navigate("sessionEnded")
+                    navController.navigate("sessionEnded?connectionLost=${!isConnected}")
                 }
             }
 
@@ -117,7 +132,9 @@ fun DataMonitorScreenRoot(
                 onDescriptionUpdated = { dataMonitorViewModel.updateSession(description = it) }
             )
         }
-        composable(route = "sessionEnded") {
+        composable(route = "sessionEnded?connectionLost={connectionLost}") { backStackEntry ->
+            val connectionLost = backStackEntry.arguments?.getString("connectionLost")?.toBoolean() == true
+
             SessionEndedScreen(
                 initialTitle = session?.title ?: "",
                 initialDescription = session?.description ?: "",
@@ -128,7 +145,8 @@ fun DataMonitorScreenRoot(
                         navigateToMenu()
                     }
                 },
-                isUpdating = isUpdating
+                isUpdating = isUpdating,
+                connectionLost = connectionLost
             )
         }
     }
@@ -175,20 +193,21 @@ fun DataMonitorScreen(
         ) {
             // Top Texts
 
-            Spacer(modifier = Modifier.height(32.dp))
+//            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge) // TODO: Bold
+//                Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge) // TODO: Bold
                 Text("Session running...", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Session Duration: ${formatElapsedTime(secondsElapsed)}", style = MaterialTheme.typography.bodyLarge)
+                Text("Duration: ${formatElapsedTime(secondsElapsed)}", style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Location: ${formatLocation(data?.latitude ?: Double.MIN_VALUE, data?.longitude ?: Double.MIN_VALUE)}", style = MaterialTheme.typography.bodyLarge)
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Box(modifier = Modifier
                 .fillMaxWidth()
@@ -208,7 +227,7 @@ fun DataMonitorScreen(
                             } ?: "N/A"}",
                             unit = "µg/m³"
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         SensorDataDisplay(
                             label = "Temp",
                             value = "${data?.temperature?.let { 
@@ -217,7 +236,7 @@ fun DataMonitorScreen(
                             unit = "°C"
                         )
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Column (
                         modifier = Modifier.weight(1f) // Ensures second column takes 50% of width
                     ) {
@@ -228,7 +247,7 @@ fun DataMonitorScreen(
                             } ?: "N/A"}",
                             unit = "ppm"
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         SensorDataDisplay(
                             label = "Hum",
                             value = "${data?.humidity?.let {
@@ -240,7 +259,7 @@ fun DataMonitorScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
 
             TitleTextField(
@@ -262,7 +281,7 @@ fun DataMonitorScreen(
                     .fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Bottom Buttons
             Column(
@@ -279,7 +298,7 @@ fun DataMonitorScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 
@@ -305,8 +324,8 @@ fun SensorDataDisplay(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(90.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(60.dp)
+            .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center
     ) {
@@ -327,15 +346,15 @@ fun SensorDataDisplay(
                 maxLines = 1
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             // Right: Label & Unit
             Column(
                 horizontalAlignment = Alignment.Start,
                 modifier = Modifier.weight(0.7f)
             ) {
-                Text(text = label, fontSize = 16.sp, color = Color.Gray)
-                Text(text = unit, fontSize = 14.sp, color = Color.DarkGray)
+                Text(text = label, fontSize = 12.sp, color = Color.Gray)
+                Text(text = unit, fontSize = 11.sp, color = Color.DarkGray)
             }
         }
     }
@@ -448,7 +467,7 @@ private fun mockSession(): Session {
         className = "test-class",
         schoolName = "test-school",
         deviceName = "AA:BB:CC:DD:EE:FF",
-        startTimestamp = 1742088746000L, // ✅ Static timestamp for consistency
+        startTimestamp = 1742088746000L, // Static timestamp for consistency
         endTimestamp = null, // Session is ongoing
         title = "test-title",
         description = "Mock Bio Data Session",
@@ -464,6 +483,28 @@ fun DataMonitorScreenPreview() {
 
 
     DataMonitorScreen(dataEntry.copy(pm25level = 8000.0f), mockSession(), {}, {}, {})
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+fun DataMonitorScreenSmallPreview() {
+    val dataEntry = generateFakeDataEntries(1)[0]
+
+    DataMonitorScreen(
+        data = dataEntry.copy(
+            pm25level = 800.0f,
+            humidity = 0.74f
+        ),
+        session = mockSession(),
+        onEndSessionConfirmed = {},
+        onTitleUpdated = {},
+        onDescriptionUpdated = {}
+    )
 }
 
 @Preview(showBackground = true)
