@@ -112,41 +112,57 @@ fun SelectGroupScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                Text(text = stringResource(R.string.the_bioinformatics_app), style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Please select your group from the dropdown menu", style = MaterialTheme.typography.labelLarge)
-                Spacer(modifier = Modifier.height(16.dp))
+//                Text(text = stringResource(R.string.the_bioinformatics_app), style = MaterialTheme.typography.titleLarge)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(16.dp, 0.dp)
+                ) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Select your group", style = MaterialTheme.typography.titleLarge)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = "Please select your school, class, and group from the dropdown menu.", style = MaterialTheme.typography.labelLarge)
+                }
+                Spacer(modifier = Modifier.weight(0.5f))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    MyDropdownMenu("School", optionsSchool, { selectedSchool = it }, selectedSchool)
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                MyDropdownMenu("School", optionsSchool, { selectedSchool = it }, selectedSchool)
-                Spacer(modifier = Modifier.height(16.dp))
+                    MyDropdownMenu("Class", optionsClass, { selectedClass = it }, selectedClass)
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                MyDropdownMenu("Class", optionsClass, { selectedClass = it }, selectedClass)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                MyDropdownMenu("Group", optionsGroup, { selectedGroup = it }, selectedGroup)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(onClick = {
-                    Timber.i("$selectedSchool, $selectedClass, $selectedGroup")
-                    if (selectedSchool.isEmpty() || selectedClass.isEmpty() || selectedGroup.isEmpty()) {
-                        missingFields = true
-                    }
-                    else {
-                        onConfirmClicked(selectedSchool, selectedClass, selectedGroup)
-                    }
-                }) {
-                    Text("Confirm")
+                    MyDropdownMenu("Group", optionsGroup, { selectedGroup = it }, selectedGroup)
                 }
 
-                if (missingFields) {
-                    Text("Please select all fields", color = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.weight(1f))
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (missingFields) {
+                        Text("Please select all fields", color = MaterialTheme.colorScheme.error)
+                    }
+                    Button(onClick = {
+                        Timber.i("$selectedSchool, $selectedClass, $selectedGroup")
+                        if (selectedSchool.isEmpty() || selectedClass.isEmpty() || selectedGroup.isEmpty()) {
+                            missingFields = true
+                        }
+                        else {
+                            onConfirmClicked(selectedSchool, selectedClass, selectedGroup)
+                        }
+                    }) {
+                        Text("Confirm")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -169,7 +185,7 @@ private fun MyDropdownMenu(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = it },
-        modifier = Modifier.padding(32.dp, 0.dp)
+        modifier = Modifier.padding(0.dp, 0.dp)
     ) {
         OutlinedTextField(
             value = selectedText,
@@ -211,5 +227,16 @@ private fun MyDropdownMenu(
 @Preview
 @Composable
 private fun SelectGroupScreenPreview() {
+    SelectGroupScreen(null, {a, b, c -> })
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+private fun SelectGroupScreenSmallPreview() {
     SelectGroupScreen(null, {a, b, c -> })
 }

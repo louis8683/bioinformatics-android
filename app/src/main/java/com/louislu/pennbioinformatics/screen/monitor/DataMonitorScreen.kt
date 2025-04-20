@@ -92,8 +92,7 @@ fun DataMonitorScreenRoot(
 
     LaunchedEffect(Unit) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.lastLocation
-                .addOnSuccessListener { location = it }
+            fusedLocationClient.lastLocation                .addOnSuccessListener { location = it }
         } else {
             // TODO: handle the case when permission is not granted (should be a rare case)
         }
@@ -291,7 +290,7 @@ fun DataMonitorScreen(
                 Button(
                     onClick = { openAlertDialog.value = true },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
+                        containerColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
                     Text("End Session")

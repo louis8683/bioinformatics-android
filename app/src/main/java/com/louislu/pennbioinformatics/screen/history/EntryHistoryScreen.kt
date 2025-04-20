@@ -1,5 +1,10 @@
 package com.louislu.pennbioinformatics.screen.history
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,14 +27,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.louislu.pennbioinformatics.domain.model.DataEntry
 import com.louislu.pennbioinformatics.domain.model.Session
 import com.louislu.pennbioinformatics.domain.model.generateFakeDataEntries
+import timber.log.Timber
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -44,12 +53,39 @@ fun EntryHistoryScreenRoot(
     val session by entryHistoryViewModel.session.collectAsState()
     val entries by entryHistoryViewModel.entries.collectAsState()
     val isLoading by entryHistoryViewModel.isLoading.collectAsState()
+    val context = LocalContext.current
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            entryHistoryViewModel.exportCsvCompat(context, filename = session?.let {
+                "${it.startTimestamp}-${it.title}.csv"
+            } ?: "export.csv")
+        } else {
+            Timber.e("Storage permission denied")
+        }
+    }
 
     EntryHistoryScreen(
         entries = entries,
         session = session,
         isLoading = isLoading, // or use a loading state if you add one
-        onBackClicked = onBackPressed
+        onBackClicked = onBackPressed,
+        onExportClicked = {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            } else {
+                entryHistoryViewModel.exportCsvCompat(context, filename = session?.let {
+                    "${it.startTimestamp}-${it.title}.csv"
+                } ?: "export.csv")
+            }
+        }
     )
 }
 
@@ -59,7 +95,8 @@ fun EntryHistoryScreen(
     entries: List<DataEntry>,
     session: Session?,
     isLoading: Boolean,
-    onBackClicked: () -> Unit
+    onBackClicked: () -> Unit,
+    onExportClicked: () -> Unit
 ) {
     Scaffold { innerPadding ->
         Column(
@@ -72,20 +109,27 @@ fun EntryHistoryScreen(
         ) {
             // Top Texts
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(16.dp, 0.dp)
             ) {
-                Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge)
-                Text(session?.title ?: "Entries", style = MaterialTheme.typography.titleLarge)
+//                Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge)
+                Text(session?.title ?: "Entries from Session", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(4.dp))
                 Text("Date: ${
                     session?.let { formatEpochMillisToDate(it.startTimestamp) }
                 }", style = MaterialTheme.typography.labelLarge)
-                Text("Click \"Export\" to download the session", style = MaterialTheme.typography.labelLarge)
+                Spacer(modifier = Modifier.height(4.dp))
+                Column(horizontalAlignment = AbsoluteAlignment.Left) {
+                    Text("1. Click \"Export\" to download", style = MaterialTheme.typography.labelLarge)
+                    Text("2. Open the \"My Files\" app", style = MaterialTheme.typography.labelLarge)
+                    Text("3. Go to the \"Download\" folder", style = MaterialTheme.typography.labelLarge)
+                }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             if (isLoading) {
                 Box(
@@ -119,18 +163,18 @@ fun EntryHistoryScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Bottom Buttons
 
             Button(
-                onClick = { /* TODO */ }, // TODO: Export to the device
+                onClick = onExportClicked,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Export CSV file to device")
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedButton(
                 onClick = onBackClicked,
@@ -139,7 +183,7 @@ fun EntryHistoryScreen(
                 Text("Back")
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
@@ -153,7 +197,7 @@ fun DataEntryTableHeader() {
             .padding(vertical = 8.dp, horizontal = 12.dp)
     ) {
         TableCell(text = "Time",
-            modifier = Modifier.weight(1.5f))
+            modifier = Modifier.weight(1.2f))
         TableCell(text = "PM2.5",
             modifier = Modifier.weight(1f))
         TableCell(text = "CO",
@@ -175,7 +219,7 @@ fun DataEntryRow(entry: DataEntry, modifier: Modifier = Modifier) {
     ) {
         TableCell(
             text = formatEpochMillisToHHMMSS(entry.timestamp),
-            modifier = Modifier.weight(1.5f))
+            modifier = Modifier.weight(1.2f))
         TableCell(
             text = "${entry.pm25level?.let { (it * 10).roundToInt() / 10.0 } ?: "-"}",
             modifier = Modifier.weight(1f))
@@ -186,7 +230,9 @@ fun DataEntryRow(entry: DataEntry, modifier: Modifier = Modifier) {
             text = "${entry.temperature?.let { (it * 10).roundToInt() / 10.0 } ?: "-"}",
             modifier = Modifier.weight(1f))
         TableCell(
-            text = "${entry.humidity?.let { (it * 10).roundToInt() / 10.0 } ?: "-"}",
+            text = entry.humidity?.let {
+                "${(it * 100).roundToInt()}%"
+            } ?: "-",
             modifier = Modifier.weight(1f))
     }
 }
@@ -254,5 +300,17 @@ private fun generateMockSessions(count: Int = 5): List<Session> {
 @Preview(showBackground = true)
 @Composable
 fun EntryHistoryScreenPreview() {
-    EntryHistoryScreen(generateFakeDataEntries(50), null, false, {})
+    EntryHistoryScreen(generateFakeDataEntries(50), null, false, {}, {})
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+fun EntryHistoryScreenSmallPreview() {
+    val session = generateMockSessions(1)[0]
+    EntryHistoryScreen(generateFakeDataEntries(50), session.copy(title = "My Session Title"), false, {}, {})
 }

@@ -131,12 +131,12 @@ fun ConnectDeviceScreen(
     ) {
         // Top Texts
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge)
+//            Text("The Bioinformatics App", style = MaterialTheme.typography.titleLarge)
             Text("Let’s connect!", style = MaterialTheme.typography.titleLarge)
             Text("Please select the device to connect", style = MaterialTheme.typography.labelLarge)
         }
@@ -162,11 +162,11 @@ fun ConnectDeviceScreen(
 
                     ListItem(
                         headlineContent = { device.name?.let { Text(it) } ?: Text("(no name)") },
-                        overlineContent = { Text(text = "(not implemented)") },
-                        supportingContent = {
-                            if (device.address.isNotEmpty()) Text("ID: ${device.address}")
-                            else Text(text = "(no ID)")
-                        },
+//                        overlineContent = { Text(text = "(not implemented)") },
+//                        supportingContent = {
+//                            if (device.address.isNotEmpty()) Text("ID: ${device.address}")
+//                            else Text(text = "(no ID)")
+//                        },
                         colors = ListItemDefaults.colors(
                             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
                         ),
@@ -188,7 +188,7 @@ fun ConnectDeviceScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Bottom Buttons
         Column(
@@ -225,7 +225,7 @@ fun ConnectDeviceScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -236,6 +236,26 @@ fun ConnectDeviceScreenPreview() {
         BleDevice(name = "Custom Sensor A", address = "44:38:39:ff:ef:57"),
         BleDevice(name = "Custom Sensor B", address = "55:22:88:aa:bb:cc"),
         BleDevice(name = "Custom Sensor C", address = "66:99:77:11:33:22")
+    )
+    ConnectDeviceScreen(devices = sampleDevices, onScan = {}, onConnect = {}, false, false, {})
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+fun ConnectDeviceScreenSmallPreview() {
+    val sampleDevices = listOf(
+        BleDevice(name = "Custom Sensor A", address = "44:38:39:ff:ef:57"),
+        BleDevice(name = "Custom Sensor B", address = "55:22:88:aa:bb:cc"),
+        BleDevice(name = "Custom Sensor C", address = "66:99:77:11:33:22"),
+        BleDevice(name = "Custom Sensor D", address = "55:22:88:aa:bb:cc"),
+        BleDevice(name = "Custom Sensor E", address = "55:22:88:aa:bb:cc"),
+        BleDevice(name = "Custom Sensor F", address = "55:22:88:aa:bb:cc"),
+        BleDevice(name = "Custom Sensor G", address = "55:22:88:aa:bb:cc"),
     )
     ConnectDeviceScreen(devices = sampleDevices, onScan = {}, onConnect = {}, false, false, {})
 }

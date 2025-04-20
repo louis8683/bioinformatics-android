@@ -13,19 +13,19 @@
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="getLatestBySession_WhenEntriesExistForDifferentSessions_ShouldReturnOnlyMatchingSessionEntry()">
+      <SelectionState runConfigName="DataMonitorScreenSmallPreview - Small Screen Preview">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="getLatestBySession_WhenEntriesExistForRemoteSession_ShouldReturnLatestRemoteSessionEntry()">
+      <SelectionState runConfigName="ConnectDeviceScreenSmallPreview - Small Screen Preview">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="SelectGroupScreenSmallPreview - Small Screen Preview">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="EntryHistoryScreenSmallPreview - Small Screen Preview">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
       <SelectionState runConfigName="EntryHistoryScreenPreview">
-        <option name="selectionMode" value="DROPDOWN" />
-      </SelectionState>
-      <SelectionState runConfigName="DataMonitorScreenPreview">
-        <option name="selectionMode" value="DROPDOWN" />
-      </SelectionState>
-      <SelectionState runConfigName="DataMonitorScreenSmallPreview - Small Screen Preview">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>

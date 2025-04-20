@@ -1,5 +1,11 @@
 package com.louislu.pennbioinformatics.screen.history
 
+import android.content.ContentValues
+import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,6 +24,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 @HiltViewModel
@@ -71,6 +83,100 @@ class EntryHistoryViewModel @Inject constructor(
         viewModelScope.launch {
             _entries.first{ it.isNotEmpty() } // wait for entry to arrive
             _isLoading.value = false
+        }
+    }
+
+    fun exportCsvCompat(context: Context, filename: String = "session.csv") {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val csv = generateCsv(_entries.value)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    saveCsvWithMediaStore(context, filename, csv)
+                } else {
+                    saveCsvLegacy(context, filename, csv)
+                }
+            }
+        }
+    }
+
+    private fun generateCsv(entries: List<DataEntry>): String {
+        val builder = StringBuilder()
+        builder.append(
+            listOf(
+                "Time",
+                "Latitude",
+                "Longitude",
+                "CO (ppm)",
+                "PM2.5 (µg/m³)",
+                "Temperature (°C)",
+                "Humidity (%)",
+                "User ID",
+                "Remote Session ID",
+            ).joinToString(",")
+        ).append("\n")
+
+        entries.forEach { entry ->
+            builder.append(
+                listOf(
+                    formatEpochMillisToDateTime(entry.timestamp),
+                    entry.latitude ?: "",
+                    entry.longitude ?: "",
+                    entry.coLevel ?: "",
+                    entry.pm25level ?: "",
+                    entry.temperature ?: "",
+                    entry.humidity ?: "",
+                    entry.userId,
+                    entry.remoteSessionId ?: ""
+                ).joinToString(",")
+            ).append("\n")
+        }
+
+        return builder.toString()
+    }
+
+    private fun formatEpochMillisToDateTime(epochMillis: Long): String {
+        val instant = Instant.ofEpochMilli(epochMillis)
+        val zonedDateTime = instant.atZone(ZoneId.systemDefault())
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        return formatter.format(zonedDateTime)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveCsvWithMediaStore(context: Context, filename: String, csvContent: String) {
+        val resolver = context.contentResolver
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, filename)
+            put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+
+        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val item = resolver.insert(collection, contentValues)
+
+        item?.let { uri ->
+            resolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.write(csvContent.toByteArray())
+            }
+            contentValues.clear()
+            contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, contentValues, null, null)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun saveCsvLegacy(context: Context, filename: String, csv: String) {
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        if (!downloadsDir.exists()) downloadsDir.mkdirs()
+
+        val file = File(downloadsDir, filename)
+        try {
+            FileOutputStream(file).use { output ->
+                output.write(csv.toByteArray())
+            }
+            Timber.i("Saved to downloads (legacy)")
+        } catch (e: IOException) {
+            e.printStackTrace()
+            Timber.e("Error saving file (legacy)")
         }
     }
 }
