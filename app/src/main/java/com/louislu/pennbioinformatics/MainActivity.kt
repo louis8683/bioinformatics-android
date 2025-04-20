@@ -48,29 +48,8 @@ class MainActivity : ComponentActivity() {
             PennBioinformaticsTheme {
                 NavigationRoot(
                     authViewModel,
-                    bleViewModel,
-                    onLoginClicked = {
-                        Timber.d("Start auth")
-                        val authIntent = authViewModel.authorizationRequestIntent
-                        startActivityForResult(authIntent, RC_AUTH)
-                    }
+                    bleViewModel
                 )
-            }
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-
-        Timber.i("onActivityResult()")
-        if (resultCode == RESULT_CANCELED) {
-            Timber.i("Auth cancelled")
-        } else {
-            data?.let {
-                val response = AuthorizationResponse.fromIntent(data)
-                val ex = AuthorizationException.fromIntent(data)
-
-                authViewModel.onAuthorizationResult(response, ex)
             }
         }
     }

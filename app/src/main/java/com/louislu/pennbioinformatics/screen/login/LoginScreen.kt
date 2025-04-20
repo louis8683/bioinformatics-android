@@ -32,7 +32,6 @@ import timber.log.Timber
 @Composable
 fun LoginScreenRoot(
     authViewModel: AuthViewModel,
-    onLoginClicked: () -> Unit,
     navigateToPermissionScreen: () -> Unit
 ) {
     val isAuthorized by authViewModel.isAuthorized.collectAsState()

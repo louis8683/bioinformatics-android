@@ -30,7 +30,7 @@ import com.louislu.pennbioinformatics.screen.history.SessionHistoryScreenRoot
 import timber.log.Timber
 
 @Composable
-fun NavigationRoot(authViewModel: AuthViewModel, bleViewModel: BleViewModel, onLoginClicked: () -> Unit) {
+fun NavigationRoot(authViewModel: AuthViewModel, bleViewModel: BleViewModel) {
     val navController = rememberNavController()
     val isAuthorized by authViewModel.isAuthorized.collectAsState()
 
@@ -38,14 +38,13 @@ fun NavigationRoot(authViewModel: AuthViewModel, bleViewModel: BleViewModel, onL
         navController = navController,
         startDestination = "main"
     ) {
-        mainGraph(navController, onLoginClicked, isAuthorized, authViewModel, bleViewModel)
+        mainGraph(navController, isAuthorized, authViewModel, bleViewModel)
     }
 }
 
 
 private fun NavGraphBuilder.mainGraph(
     navController: NavHostController,
-    onLoginClicked: () -> Unit,
     isAuthorized: Boolean,
     authViewModel: AuthViewModel,
     bleViewModel: BleViewModel
@@ -58,7 +57,6 @@ private fun NavGraphBuilder.mainGraph(
         composable(route = "loginScreen") {
             LoginScreenRoot(
                 authViewModel = authViewModel,
-                onLoginClicked = onLoginClicked,
                 navigateToPermissionScreen = { navController.navigate("selectGroupScreen?fromLogin=true") }
             )
         }
