@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -163,7 +164,7 @@ fun DataMonitorScreen(
     var secondsElapsed by remember { mutableLongStateOf(0) }
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    val openAlertDialog = remember { mutableStateOf(false) }
+    var openAlertDialog by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(session) {
@@ -175,6 +176,10 @@ fun DataMonitorScreen(
     }
     LaunchedEffect(title) { onTitleUpdated(title) }
     LaunchedEffect(description) { onDescriptionUpdated(description) }
+
+    BackHandler {
+        openAlertDialog = true
+    }
 
     Scaffold { innerPadding ->
         Column(
@@ -288,7 +293,7 @@ fun DataMonitorScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Button(
-                    onClick = { openAlertDialog.value = true },
+                    onClick = { openAlertDialog = true },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
@@ -302,13 +307,13 @@ fun DataMonitorScreen(
     }
 
     when {
-        openAlertDialog.value -> {
+        openAlertDialog -> {
             EndSessionConfirmAlertDialog(
                 onConfirm = {
-                    openAlertDialog.value = false
+                    openAlertDialog = false
                     onEndSessionConfirmed()
                 },
-                onDismiss = { openAlertDialog.value = false }
+                onDismiss = { openAlertDialog = false }
             )
         }
     }

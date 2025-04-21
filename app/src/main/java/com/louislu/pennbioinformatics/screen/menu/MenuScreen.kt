@@ -136,8 +136,8 @@ fun MenuScreen(
     displayQuitAlertDialog: Boolean,
     onAlertDialogOptionSelected: (Boolean) -> Unit
 ) {
-    val displayLogoutAlertDialog = remember { mutableStateOf(false) }
-    val displayDisconnectAlertDialog = remember { mutableStateOf(false) }
+    var displayLogoutAlertDialog by remember { mutableStateOf(false) }
+    var displayDisconnectAlertDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -225,7 +225,7 @@ fun MenuScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
-                    onClick = { displayLogoutAlertDialog.value = true }
+                    onClick = { displayLogoutAlertDialog = true }
                 ) { Text("Logout") }
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
@@ -234,7 +234,7 @@ fun MenuScreen(
                         containerColor = MaterialTheme.colorScheme.error
                     ) else ButtonDefaults.buttonColors(),
                     onClick = {
-                        if (isConnected) displayDisconnectAlertDialog.value = true
+                        if (isConnected) displayDisconnectAlertDialog = true
                         else onConnect()
                     }
                 ) { Text( if (isConnected) "Disconnect Device" else "Connect to Device" )}
@@ -244,13 +244,13 @@ fun MenuScreen(
     }
 
     when {
-        displayLogoutAlertDialog.value -> {
+        displayLogoutAlertDialog -> {
             LogoutConfirmAlertDialog(
                 onConfirm = {
-                    displayLogoutAlertDialog.value = false
+                    displayLogoutAlertDialog = false
                     onLogoutConfirmed()
                 },
-                onDismiss = { displayLogoutAlertDialog.value = false }
+                onDismiss = { displayLogoutAlertDialog = false }
             )
         }
 
@@ -262,14 +262,14 @@ fun MenuScreen(
             )
         }
 
-        displayDisconnectAlertDialog.value -> {
+        displayDisconnectAlertDialog -> {
             DisconnectConfirmAlertDialog(
                 onConfirm = {
-                    displayDisconnectAlertDialog.value = false
+                    displayDisconnectAlertDialog = false
                     if (isConnected) onDisconnectConfirmed()
                 },
                 onDismiss = {
-                    displayDisconnectAlertDialog.value = false
+                    displayDisconnectAlertDialog = false
                 }
             )
         }

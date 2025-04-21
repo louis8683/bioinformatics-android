@@ -1,5 +1,6 @@
 package com.louislu.pennbioinformatics.screen.monitor
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,8 @@ fun SessionEndedScreen(
     var title by remember { mutableStateOf(initialTitle) }
     var description by remember { mutableStateOf(initialDescription) }
     val focusManager = LocalFocusManager.current
+
+    BackHandler { onUpdateClicked(title, description) }
 
     Scaffold { innerPadding ->
         Box(
