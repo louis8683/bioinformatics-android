@@ -102,7 +102,7 @@ fun MenuScreenRoot(
         pendingCount = pendingCount,
         isUploading = isUploading,
         isConnected = isConnected,
-        onDisconnect = { bleViewModel.disconnect() },
+        onDisconnectConfirmed = { bleViewModel.disconnect() },
         onConnect = {
             if (bleViewModel.isEnabled) navigateToConnect()
             else displayNoBluetoothSnackbar = true
@@ -113,7 +113,7 @@ fun MenuScreenRoot(
         displayQuitAlertDialog = showQuitDialog,
         onAlertDialogOptionSelected = { quit ->
             if (quit) { (context as? Activity)?.finish() }
-            else showQuitDialog = false
+            showQuitDialog = false
         }
     )
 }
@@ -129,14 +129,15 @@ fun MenuScreen(
     pendingCount: Int,
     isUploading: Boolean,
     isConnected: Boolean,
-    onDisconnect: () -> Unit,
+    onDisconnectConfirmed: () -> Unit,
     onConnect: () -> Unit,
     displayNoBluetoothSnackbar: Boolean,
     onNoBluetoothSnackbarDismissed: () -> Unit,
     displayQuitAlertDialog: Boolean,
     onAlertDialogOptionSelected: (Boolean) -> Unit
 ) {
-    val openLogoutAlertDialog = remember { mutableStateOf(false) }
+    val displayLogoutAlertDialog = remember { mutableStateOf(false) }
+    val displayDisconnectAlertDialog = remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -224,7 +225,7 @@ fun MenuScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth().padding(64.dp, 0.dp),
-                    onClick = { openLogoutAlertDialog.value = true }
+                    onClick = { displayLogoutAlertDialog.value = true }
                 ) { Text("Logout") }
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
@@ -232,7 +233,10 @@ fun MenuScreen(
                     colors = if (isConnected) ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     ) else ButtonDefaults.buttonColors(),
-                    onClick = if (isConnected) onDisconnect else onConnect
+                    onClick = {
+                        if (isConnected) displayDisconnectAlertDialog.value = true
+                        else onConnect()
+                    }
                 ) { Text( if (isConnected) "Disconnect Device" else "Connect to Device" )}
 
             }
@@ -240,10 +244,13 @@ fun MenuScreen(
     }
 
     when {
-        openLogoutAlertDialog.value -> {
+        displayLogoutAlertDialog.value -> {
             LogoutConfirmAlertDialog(
-                onConfirm = onLogoutConfirmed,
-                onDismiss = { openLogoutAlertDialog.value = false }
+                onConfirm = {
+                    displayLogoutAlertDialog.value = false
+                    onLogoutConfirmed()
+                },
+                onDismiss = { displayLogoutAlertDialog.value = false }
             )
         }
 
@@ -252,6 +259,18 @@ fun MenuScreen(
                 onDismiss = { onAlertDialogOptionSelected(false) },
                 onConfirmClicked = { onAlertDialogOptionSelected(true) },
                 onDismissClicked = { onAlertDialogOptionSelected(false) },
+            )
+        }
+
+        displayDisconnectAlertDialog.value -> {
+            DisconnectConfirmAlertDialog(
+                onConfirm = {
+                    displayDisconnectAlertDialog.value = false
+                    if (isConnected) onDisconnectConfirmed()
+                },
+                onDismiss = {
+                    displayDisconnectAlertDialog.value = false
+                }
             )
         }
     }
@@ -264,9 +283,23 @@ private fun LogoutConfirmAlertDialog(
 ) {
     AlertDialog(
         title = { Text("Logout") },
-        text = { Text("You must be logged in to record data. Logging in will require internet connection.") },
+        text = { Text("Are you sure you want to logout? You must be logged in to record data. Logging in will require internet connection.") },
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Confirm") } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Logout") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun DisconnectConfirmAlertDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        title = { Text("Disconnect") },
+        text = { Text("Are you sure you want to disconnect?") },
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Disconnect") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }

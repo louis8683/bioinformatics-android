@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -18,8 +21,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -32,16 +39,16 @@ import timber.log.Timber
 @Composable
 fun LoginScreenRoot(
     authViewModel: AuthViewModel,
-    navigateToPermissionScreen: () -> Unit
+    navigateToPermissionScreen: () -> Unit,
+    navigateToMenu: () -> Unit
 ) {
     val isAuthorized by authViewModel.isAuthorized.collectAsState()
     val initializing by authViewModel.initializing.collectAsState()
+    var isLoggingIn by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        // TODO
-
         Timber.i("activity result")
         if (result.resultCode == RESULT_CANCELED) {
             Timber.d("Auth cancelled")
@@ -66,7 +73,9 @@ fun LoginScreenRoot(
     }
 
     LoginScreen(
+        isLoggingIn = isLoggingIn,
         onClick = {
+            isLoggingIn = true
             Timber.d("Start auth")
             val authIntent = authViewModel.authorizationRequestIntent
             launcher.launch(authIntent)
@@ -76,6 +85,7 @@ fun LoginScreenRoot(
 
 @Composable
 fun LoginScreen(
+    isLoggingIn: Boolean,
     onClick: () -> Unit,
 ) {
 
@@ -96,16 +106,42 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(text = "Please login or create a new account", style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onClick) {
-                    Text("Login / Sign Up")
+                Button(onClick = onClick, enabled = !isLoggingIn) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("Login / Sign up", color = if (isLoggingIn) Color.Transparent else Color.Unspecified)
+
+                        if (isLoggingIn) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier
+                                    .size(20.dp) // Adjust size to match text height
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-@Preview
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
 @Composable
 private fun LoginScreenPreview() {
-    LoginScreen({})
+    LoginScreen(false, {})
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+private fun LoginScreenLoadingPreview() {
+    LoginScreen(true, {})
 }

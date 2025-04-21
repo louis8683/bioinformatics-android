@@ -2,7 +2,6 @@ package com.louislu.pennbioinformatics
 
 import android.annotation.SuppressLint
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -27,6 +26,7 @@ import com.louislu.pennbioinformatics.screen.menu.MenuScreenRoot
 import com.louislu.pennbioinformatics.screen.permission.PermissionScreenRoot
 import com.louislu.pennbioinformatics.screen.group.SelectGroupScreenRoot
 import com.louislu.pennbioinformatics.screen.history.SessionHistoryScreenRoot
+import com.louislu.pennbioinformatics.screen.splash.SplashScreenRoot
 import timber.log.Timber
 
 @Composable
@@ -51,13 +51,21 @@ private fun NavGraphBuilder.mainGraph(
 ) {
 
     navigation(
-        startDestination = "loginScreen",
+        startDestination = "splashScreen",
         route = "main"
     ) {
+        composable(route = "splashScreen") {
+            SplashScreenRoot(
+                authViewModel = authViewModel,
+                onNavigateToMenu = { navController.navigate("menuScreen") },
+                onNavigateToLogin = { navController.navigate("loginScreen") }
+            )
+        }
         composable(route = "loginScreen") {
             LoginScreenRoot(
                 authViewModel = authViewModel,
-                navigateToPermissionScreen = { navController.navigate("selectGroupScreen?fromLogin=true") }
+                navigateToPermissionScreen = { navController.navigate("selectGroupScreen?fromLogin=true") },
+                navigateToMenu = { navController.navigate("menuScreen") }
             )
         }
         composable(route = "selectGroupScreen?fromLogin={fromLogin}") { backStackEntry ->
