@@ -5,6 +5,7 @@ import com.louislu.pennbioinformatics.data.session.local.SessionDao
 import com.louislu.pennbioinformatics.data.session.local.toEntity
 import com.louislu.pennbioinformatics.data.session.remote.CreateSessionRequest
 import com.louislu.pennbioinformatics.data.session.remote.SessionApiService
+import com.louislu.pennbioinformatics.data.session.remote.UpdateSessionRequest
 import com.louislu.pennbioinformatics.domain.model.Session
 import com.louislu.pennbioinformatics.domain.repository.SessionRepository
 import kotlinx.coroutines.flow.Flow
@@ -40,8 +41,11 @@ class SessionRepositoryImpl @Inject constructor(
 
     /*** Insert or Update a Session ***/
     override suspend fun upsert(session: Session): Long {
+        // NOTE: current flow -- set pending to true, instead of trying to update directly
+        //       In the future, we can try to upload directly.
         Timber.i("Updating session: $session")
-        val result = sessionDao.upsert(session.toEntity())
+        val result = sessionDao.upsert(
+            session.copy(pendingUpload = true).toEntity())
         Timber.i("Result: $result")
         Timber.i("Updated session: ${sessionDao.getByLocalId(localId = result).firstOrNull()}")
         return result
@@ -56,46 +60,72 @@ class SessionRepositoryImpl @Inject constructor(
         val pendingSessions = sessionDao.getAllPendingUpload()
 
         for (entity in pendingSessions) {
+            // TODO: differentiate between those that are already in the cloud DB, and those that are new
             try {
                 val session = entity.toDomainModel()
-                val request = CreateSessionRequest(
-                    userId = session.userId,
-                    groupName = session.groupName,
-                    className = session.className,
-                    schoolName = session.schoolName,
-                    deviceName = session.deviceName,
-                    startTimestamp = session.startTimestamp,
-                    title = session.title,
-                    description = session.description
-                )
 
-                authRepository.getAccessToken()
-                    .onFailure {
-                        return // TODO: return a Result indicating failure
-                    }
-                    .onSuccess { token ->
-                        val serverId = sessionApiService.createSession("Bearer $token", request).sessionId
+                val tokenResult = authRepository.getAccessToken()
+                if (tokenResult.isFailure) {
+                    Timber.w("Sync: failed to get token")
+                    return
+                }
 
-                        Timber.i("Sync: server ID generated = $serverId")
-                        val sessionFromServer = sessionApiService.getSessionById("Bearer $token", serverId)
-                            .toDomainModel()
+                val token = tokenResult.getOrThrow()
 
-                        Timber.i("Sync: refetched session = $sessionFromServer")
+                if (session.serverId == null) {
+                    val request = CreateSessionRequest(
+                        userId = session.userId,
+                        groupName = session.groupName,
+                        className = session.className,
+                        schoolName = session.schoolName,
+                        deviceName = session.deviceName,
+                        startTimestamp = session.startTimestamp,
+                        title = session.title,
+                        description = session.description
+                    )
 
-                        // Save back to Room with updated serverId and pendingUpload = false
-                        sessionDao.upsert(
-                            sessionFromServer.copy(
-                                localId = session.localId, // preserve localId
-                                pendingUpload = false
-                            ).toEntity()
-                        )
-                    }
+                    val serverId = sessionApiService.createSession("Bearer $token", request).sessionId
+
+                    Timber.i("Sync: server ID generated = $serverId")
+                    val sessionFromServer = sessionApiService.getSessionById("Bearer $token", serverId)
+                        .toDomainModel()
+
+                    Timber.i("Sync: refetched session = $sessionFromServer")
+
+                    // Save back to Room with updated serverId and pendingUpload = false
+                    sessionDao.upsert(
+                        sessionFromServer.copy(
+                            localId = session.localId, // preserve localId
+                            pendingUpload = false
+                        ).toEntity()
+                    )
+                }
+                else {
+                    val updateRequest = UpdateSessionRequest(
+                        description = session.description,
+                        device_name = session.deviceName,
+                        group_name = session.groupName,
+                        class_name = session.className,
+                        school_name = session.schoolName,
+                        title = session.title,
+                        end_timestamp = session.endTimestamp
+                    )
+
+                    sessionApiService.updateSession("Bearer $token", session.serverId, updateRequest)
+                    Timber.i("Sync: updated session with serverId = ${session.serverId}")
+
+                    // Mark local entity as synced
+                    sessionDao.upsert(
+                        session.copy(pendingUpload = false).toEntity()
+                    )
+                }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to sync session with localId=${entity.localId}, exception: $e")
                 // Skip and move to the next one
             }
         }
     }
+
     override suspend fun createSession(
         userId: String,
         groupName: String?,

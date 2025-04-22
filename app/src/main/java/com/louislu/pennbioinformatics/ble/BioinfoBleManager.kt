@@ -46,7 +46,7 @@ class BioinfoBleManager(context: Context): BleManager(context) {
         private val REQUEST_CHARACTERISTIC_UUID = UUID.fromString("4f2d7b8e-23b9-4bc7-905f-a8e3d7841f6a")
         private val RESPONSE_CHARACTERISTIC_UUID = UUID.fromString("93e89c7d-65e3-41e6-b59f-1f3a6478de45")
         private val ENV_SENSING_SERVICE_UUID = UUID.fromString("0000181a-0000-1000-8000-00805f9b34fb")
-        private val BATTERY_SERVICE_UUID = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")
+        private val BATTERY_CHARACTERISTIC_UUID = UUID.fromString("3fcd2786-f1b1-4b64-b6d3-7ecb36d4f4a5")
         private val BIOINFO_CHARACTERISTIC_UUID = UUID.fromString("9fda7cce-48d4-4b1a-9026-6d46eec4e63a")
 
         private const val HANDSHAKE_MSG = "hello"

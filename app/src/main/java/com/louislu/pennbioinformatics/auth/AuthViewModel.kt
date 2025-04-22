@@ -61,6 +61,13 @@ class AuthViewModel @Inject constructor(
     private val _userInfo = MutableStateFlow<UserInfo?>(null)
     val userInfo: StateFlow<UserInfo?> = _userInfo
 
+    private val _isGetUserInfoLoading = MutableStateFlow<Boolean>(false)
+    val isGetUserInfoLoading: StateFlow<Boolean> = _isGetUserInfoLoading
+
+
+    private val _isUpdateUserInfoLoading = MutableStateFlow<Boolean>(false)
+    val isUpdateUserInfoLoading: StateFlow<Boolean> = _isUpdateUserInfoLoading
+
     private val _initializing = MutableStateFlow(true)
     val initializing: StateFlow<Boolean> = _initializing
 
@@ -97,7 +104,9 @@ class AuthViewModel @Inject constructor(
 
     fun getUserInfo() {
         viewModelScope.launch {
+            _isGetUserInfoLoading.value = true
             _userInfo.value = authRepository.getUserInfo()
+            _isGetUserInfoLoading.value = false
             Timber.i("Get User Info Result: ${userInfo.value}")
         }
     }
@@ -105,8 +114,10 @@ class AuthViewModel @Inject constructor(
     fun updateUserInfo(schoolName:String, className: String, groupName: String) {
         viewModelScope.launch {
             try {
+                _isUpdateUserInfoLoading.value = true
                 authRepository.updateUserInfo(schoolName, className, groupName).getOrThrow()
                 getUserInfo()
+                _isUpdateUserInfoLoading.value = false
             } catch (e: Exception) {
                 Timber.i("Exception: $e")
                 // TODO: gracefully handle

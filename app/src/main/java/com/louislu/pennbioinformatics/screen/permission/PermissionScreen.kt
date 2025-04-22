@@ -29,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.louislu.pennbioinformatics.R
 import com.louislu.pennbioinformatics.auth.AuthViewModel
+import com.louislu.pennbioinformatics.requiredPermissions
 import timber.log.Timber
 
 @Composable
@@ -36,16 +37,6 @@ fun PermissionScreenRoot(
     authViewModel: AuthViewModel,
     onPermissionGranted: () -> Unit
 ) {
-    val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        arrayOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
-    } else {
-        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
-
     var permissionsState by remember { mutableStateOf(false) }
 
     val permissionsLauncher = rememberLauncherForActivityResult(

@@ -22,4 +22,12 @@ interface SessionApiService {
         @Header("Authorization") bearerToken: String,
         @Path("sessionId") sessionId: Long
     ): SessionDto
+
+    @PUT("sessions/{sessionId}")
+    suspend fun updateSession(
+        @Header("Authorization") bearerToken: String,
+        @Path("sessionId") sessionId: Long,
+        @Body request: UpdateSessionRequest
+    ): UpdateSessionResponse
+
 }

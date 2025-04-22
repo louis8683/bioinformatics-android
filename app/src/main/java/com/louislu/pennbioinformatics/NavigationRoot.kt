@@ -64,8 +64,9 @@ private fun NavGraphBuilder.mainGraph(
         composable(route = "loginScreen") {
             LoginScreenRoot(
                 authViewModel = authViewModel,
-                navigateToPermissionScreen = { navController.navigate("selectGroupScreen?fromLogin=true") },
-                navigateToMenu = { navController.navigate("menuScreen") }
+                navigateToPermissionScreen = { navController.navigate("permissionScreen") },
+                navigateToMenu = { navController.navigate("menuScreen") },
+                navigateToSelectGroup = { navController.navigate("selectGroupScreen?fromLogin=true") }
             )
         }
         composable(route = "selectGroupScreen?fromLogin={fromLogin}") { backStackEntry ->
@@ -73,7 +74,7 @@ private fun NavGraphBuilder.mainGraph(
             SelectGroupScreenRoot(
                 authViewModel = authViewModel,
                 navigateToPermission = { navController.navigate("permissionScreen") },
-                fromLogin = fromLogin
+                navigateToMenu = { navController.navigate("menuScreen") }
             )
         }
         composable(route = "permissionScreen") {

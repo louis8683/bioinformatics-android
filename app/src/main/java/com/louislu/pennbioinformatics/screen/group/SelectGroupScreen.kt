@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -27,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -34,39 +38,48 @@ import androidx.compose.ui.unit.dp
 import com.louislu.pennbioinformatics.R
 import com.louislu.pennbioinformatics.auth.AuthViewModel
 import com.louislu.pennbioinformatics.domain.model.UserInfo
+import com.louislu.pennbioinformatics.hasPermissions
+import com.louislu.pennbioinformatics.requiredPermissions
 import timber.log.Timber
 
 @Composable
 fun SelectGroupScreenRoot(
     authViewModel: AuthViewModel,
     navigateToPermission: () -> Unit,
-    fromLogin: Boolean
+    navigateToMenu: () -> Unit
 ) {
     val userInfo by authViewModel.userInfo.collectAsState()
+    val isGetUserInfoLoading by authViewModel.isGetUserInfoLoading.collectAsState()
+    val isUpdateUserInfoLoading by authViewModel.isUpdateUserInfoLoading.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         authViewModel.getUserInfo()
     }
 
-    LaunchedEffect(userInfo) {
-        userInfo?.let {
-            if (fromLogin && it.schoolName != null && it.className != null && it.groupName != null) {
-                navigateToPermission()
+    SelectGroupScreen(
+        userInfo = userInfo,
+        onConfirmClicked = { schoolName, className, groupName ->
+            authViewModel.updateUserInfo(schoolName, className, groupName)
+            // TODO: instead of navigating after this call, use a event state to signal a successful or failure of update
+            if (hasPermissions(context, requiredPermissions)) {
+                navigateToMenu()
             }
-        }
-    }
-
-    SelectGroupScreen(userInfo) { schoolName, className, groupName ->
-        authViewModel.updateUserInfo(schoolName, className, groupName)
-        // TODO: instead of navigating after this call, use a event state to signal a successful or failure of update
-        navigateToPermission()
-    }
+            else {
+                navigateToPermission
+            }
+        },
+        isGetUserInfoLoading = isGetUserInfoLoading,
+        isUpdateUserInfoLoading = isUpdateUserInfoLoading
+    )
 }
 
 @Composable
 fun SelectGroupScreen(
     userInfo: UserInfo?,
-    onConfirmClicked: (String, String, String) -> Unit
+    onConfirmClicked: (String, String, String) -> Unit,
+    isGetUserInfoLoading: Boolean,
+    isUpdateUserInfoLoading: Boolean
 ) {
     var missingFields by remember { mutableStateOf(false) }
     var selectedSchool by remember { mutableStateOf("") }
@@ -128,19 +141,42 @@ fun SelectGroupScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Select your group", style = MaterialTheme.typography.titleLarge)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "Please select your school, class, and group from the dropdown menu.", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = "Please select your school, class, and group from the dropdown menu.",
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
                 Spacer(modifier = Modifier.weight(0.5f))
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    MyDropdownMenu("School", optionsSchool, { selectedSchool = it }, selectedSchool)
-                    Spacer(modifier = Modifier.height(16.dp))
+                if (!isGetUserInfoLoading) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        MyDropdownMenu(
+                            "School",
+                            optionsSchool,
+                            { selectedSchool = it },
+                            selectedSchool
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    MyDropdownMenu("Class", optionsClass, { selectedClass = it }, selectedClass)
-                    Spacer(modifier = Modifier.height(16.dp))
+                        MyDropdownMenu(
+                            "Class",
+                            optionsClass,
+                            { selectedClass = it },
+                            selectedClass
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    MyDropdownMenu("Group", optionsGroup, { selectedGroup = it }, selectedGroup)
+                        MyDropdownMenu(
+                            "Group",
+                            optionsGroup,
+                            { selectedGroup = it },
+                            selectedGroup
+                        )
+                    }
+                }
+                else {
+                    CircularProgressIndicator()
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -149,18 +185,33 @@ fun SelectGroupScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (missingFields) {
-                        Text("Please select all fields", color = MaterialTheme.colorScheme.error)
+                        Text(
+                            "Please select all fields",
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
-                    Button(onClick = {
-                        Timber.i("$selectedSchool, $selectedClass, $selectedGroup")
-                        if (selectedSchool.isEmpty() || selectedClass.isEmpty() || selectedGroup.isEmpty()) {
-                            missingFields = true
+                    Button(
+                        onClick = {
+                            Timber.i("$selectedSchool, $selectedClass, $selectedGroup")
+                            if (selectedSchool.isEmpty() || selectedClass.isEmpty() || selectedGroup.isEmpty()) {
+                                missingFields = true
+                            } else {
+                                onConfirmClicked(selectedSchool, selectedClass, selectedGroup)
+                            }
+                        },
+                        enabled = !isUpdateUserInfoLoading
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("Confirm", color = if (isUpdateUserInfoLoading) Color.Transparent else Color.Unspecified)
+
+                            if (isUpdateUserInfoLoading) {
+                                CircularProgressIndicator(
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier
+                                        .size(20.dp) // Adjust size to match text height
+                                )
+                            }
                         }
-                        else {
-                            onConfirmClicked(selectedSchool, selectedClass, selectedGroup)
-                        }
-                    }) {
-                        Text("Confirm")
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -227,7 +278,7 @@ private fun MyDropdownMenu(
 @Preview
 @Composable
 private fun SelectGroupScreenPreview() {
-    SelectGroupScreen(null, {a, b, c -> })
+    SelectGroupScreen(null, {a, b, c -> }, false, false)
 }
 
 @Preview(
@@ -238,5 +289,27 @@ private fun SelectGroupScreenPreview() {
 )
 @Composable
 private fun SelectGroupScreenSmallPreview() {
-    SelectGroupScreen(null, {a, b, c -> })
+    SelectGroupScreen(null, {a, b, c -> }, false, false)
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+private fun SelectGroupScreenSmallLoadingPreview() {
+    SelectGroupScreen(null, {a, b, c -> }, true, false)
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+private fun SelectGroupScreenSmallUpdateLoadingPreview() {
+    SelectGroupScreen(null, {a, b, c -> }, false, true)
 }

@@ -45,6 +45,7 @@ import com.louislu.pennbioinformatics.R
 import com.louislu.pennbioinformatics.auth.AuthViewModel
 import com.louislu.pennbioinformatics.ble.BleViewModel
 import com.louislu.pennbioinformatics.domain.model.UserInfo
+import com.louislu.pennbioinformatics.hasInternetConnection
 import com.louislu.pennbioinformatics.screen.monitor.QuitAlertDialog
 import kotlinx.coroutines.launch
 
@@ -58,11 +59,16 @@ fun MenuScreenRoot(
     navigateToHistory: () -> Unit,
     navigateToSelectGroup: () -> Unit
 ) {
+    // TODO: write a timeout for getting user info. Right now, it's causing the new session button
+    //       to be disabled.
+
+
     val menuViewModel: MenuViewModel = hiltViewModel()
     val isConnected by bleViewModel.isConnected.collectAsState()
     val userInfo by menuViewModel.userInfo.collectAsState()
     val isAuthorized by authViewModel.isAuthorized.collectAsState()
     var displayNoBluetoothSnackbar by remember { mutableStateOf(false) }
+    var displayNoInternetSnackbar by remember { mutableStateOf(false) }
     var showQuitDialog by remember { mutableStateOf(false) }
     val pendingCount by menuViewModel.numPendingUpload.collectAsState()
     val isUploading by menuViewModel.isUploading.collectAsState()
@@ -94,20 +100,28 @@ fun MenuScreenRoot(
             )
         },
         onHistoryClicked = { navigateToHistory() },
-        onUploadClicked = { menuViewModel.syncAll() },
+        onUploadClicked = {
+            if (hasInternetConnection(context)) menuViewModel.syncAll()
+            else displayNoInternetSnackbar = true
+        },
         onLogoutConfirmed = {
             authViewModel.logout()
             navigateToLogin()
         },
         pendingCount = pendingCount,
         isUploading = isUploading,
+        displayNoInternetSnackbar = displayNoInternetSnackbar,
+        onNoInternetSnackbarDismissed = { displayNoInternetSnackbar = false },
         isConnected = isConnected,
         onDisconnectConfirmed = { bleViewModel.disconnect() },
         onConnect = {
             if (bleViewModel.isEnabled) navigateToConnect()
             else displayNoBluetoothSnackbar = true
         },
-        onChangeGroupClicked = { navigateToSelectGroup() },
+        onChangeGroupClicked = {
+            if (hasInternetConnection(context)) navigateToSelectGroup()
+            else displayNoInternetSnackbar = true
+        },
         displayNoBluetoothSnackbar = displayNoBluetoothSnackbar,
         onNoBluetoothSnackbarDismissed = { displayNoBluetoothSnackbar = false },
         displayQuitAlertDialog = showQuitDialog,
@@ -129,6 +143,8 @@ fun MenuScreen(
     pendingCount: Int,
     isUploading: Boolean,
     isConnected: Boolean,
+    displayNoInternetSnackbar: Boolean,
+    onNoInternetSnackbarDismissed: () -> Unit,
     onDisconnectConfirmed: () -> Unit,
     onConnect: () -> Unit,
     displayNoBluetoothSnackbar: Boolean,
@@ -148,7 +164,7 @@ fun MenuScreen(
                 val result = snackbarHostState.showSnackbar(
                     message = "Please enable Bluetooth from device settings.",
                     actionLabel = "Dismiss",
-                    duration = SnackbarDuration.Indefinite
+                    duration = SnackbarDuration.Long
                 )
                 if (result == SnackbarResult.ActionPerformed) {
                     onNoBluetoothSnackbarDismissed()
@@ -156,6 +172,22 @@ fun MenuScreen(
             }
         }
     }
+
+    LaunchedEffect(displayNoInternetSnackbar) {
+        if (displayNoInternetSnackbar) {
+            coroutineScope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = "No Internet Connection.",
+                    actionLabel = "Dismiss",
+                    duration = SnackbarDuration.Long
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    onNoInternetSnackbarDismissed()
+                }
+            }
+        }
+    }
+
 
     Scaffold(
         snackbarHost = {
@@ -308,26 +340,26 @@ private fun DisconnectConfirmAlertDialog(
 @Composable
 fun MenuScreenPreview() {
     val userInfo = UserInfo("","", "","","","","","John Doe")
-    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, false, {}, {}, false, {}, false, {})
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, false, false, {}, {}, {}, false, {}, false, {})
 }
 
 @Preview
 @Composable
 fun MenuScreenPreviewConnected() {
     val userInfo = UserInfo("","", "","","","","","John Doe")
-    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, true, {}, {}, false, {}, false, {})
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, false, true, false, {}, {}, {}, false, {}, false, {})
 }
 
 @Preview
 @Composable
 fun MenuScreenPreviewUploading() {
     val userInfo = UserInfo("","", "","","","","","John Doe")
-    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, true, false, {}, {}, false, {}, false, {})
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 10, true, false, false, {}, {}, {}, false, {}, false, {})
 }
 
 @Preview
 @Composable
 fun MenuScreenPreviewNoPending() {
     val userInfo = UserInfo("","", "","","","","","John Doe")
-    MenuScreen(userInfo, {}, {}, {}, {}, {}, 0, false, false, {}, {}, false, {}, false, {})
+    MenuScreen(userInfo, {}, {}, {}, {}, {}, 0, false, false, false, {}, {}, {}, false, {}, false, {})
 }
