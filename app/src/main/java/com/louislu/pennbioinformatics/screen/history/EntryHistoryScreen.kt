@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -30,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -53,6 +55,7 @@ fun EntryHistoryScreenRoot(
     val session by entryHistoryViewModel.session.collectAsState()
     val entries by entryHistoryViewModel.entries.collectAsState()
     val isLoading by entryHistoryViewModel.isLoading.collectAsState()
+    val isSaving by entryHistoryViewModel.isSaving.collectAsState()
     val context = LocalContext.current
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -85,7 +88,8 @@ fun EntryHistoryScreenRoot(
                     "${it.startTimestamp}-${it.title}.csv"
                 } ?: "export.csv")
             }
-        }
+        },
+        isSaving = isSaving
     )
 }
 
@@ -96,7 +100,8 @@ fun EntryHistoryScreen(
     session: Session?,
     isLoading: Boolean,
     onBackClicked: () -> Unit,
-    onExportClicked: () -> Unit
+    onExportClicked: () -> Unit,
+    isSaving: Boolean
 ) {
     Scaffold { innerPadding ->
         Column(
@@ -125,7 +130,8 @@ fun EntryHistoryScreen(
                 Column(horizontalAlignment = AbsoluteAlignment.Left) {
                     Text("1. Click \"Export\" to download", style = MaterialTheme.typography.labelLarge)
                     Text("2. Open the \"My Files\" app", style = MaterialTheme.typography.labelLarge)
-                    Text("3. Go to the \"Download\" folder", style = MaterialTheme.typography.labelLarge)
+                    Text("3. Click on \"Internal storage\"", style = MaterialTheme.typography.labelLarge)
+                    Text("4. Go to the \"Download\" folder", style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -169,9 +175,21 @@ fun EntryHistoryScreen(
 
             Button(
                 onClick = onExportClicked,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving
             ) {
-                Text("Export CSV file to device")
+
+                Box(contentAlignment = Alignment.Center) {
+                    Text("Export CSV file to device", color = if (isSaving) Color.Transparent else Color.Unspecified)
+
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            modifier = Modifier
+                                .size(20.dp) // Adjust size to match text height
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -300,7 +318,7 @@ private fun generateMockSessions(count: Int = 5): List<Session> {
 @Preview(showBackground = true)
 @Composable
 fun EntryHistoryScreenPreview() {
-    EntryHistoryScreen(generateFakeDataEntries(50), null, false, {}, {})
+    EntryHistoryScreen(generateFakeDataEntries(50), null, false, {}, {}, false)
 }
 
 @Preview(
@@ -312,5 +330,17 @@ fun EntryHistoryScreenPreview() {
 @Composable
 fun EntryHistoryScreenSmallPreview() {
     val session = generateMockSessions(1)[0]
-    EntryHistoryScreen(generateFakeDataEntries(50), session.copy(title = "My Session Title"), false, {}, {})
+    EntryHistoryScreen(generateFakeDataEntries(50), session.copy(title = "My Session Title"), false, {}, {}, false)
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    name = "Small Screen Preview"
+)
+@Composable
+fun EntryHistoryScreenSmallLoadingPreview() {
+    val session = generateMockSessions(1)[0]
+    EntryHistoryScreen(generateFakeDataEntries(50), session.copy(title = "My Session Title"), false, {}, {}, true)
 }

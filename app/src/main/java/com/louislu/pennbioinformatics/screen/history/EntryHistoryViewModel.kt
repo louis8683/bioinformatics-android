@@ -42,6 +42,9 @@ class EntryHistoryViewModel @Inject constructor(
     private val id: Long? = savedStateHandle["id"]
     private val isServerId: Boolean? = savedStateHandle["isServerId"]
 
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving
+
     // TODO: deal with the both null (which shouldn't happen)
 
     private val _entries = MutableStateFlow<List<DataEntry>>(emptyList())
@@ -165,18 +168,23 @@ class EntryHistoryViewModel @Inject constructor(
 
     @Suppress("DEPRECATION")
     private fun saveCsvLegacy(context: Context, filename: String, csv: String) {
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (!downloadsDir.exists()) downloadsDir.mkdirs()
+        _isSaving.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
 
-        val file = File(downloadsDir, filename)
-        try {
-            FileOutputStream(file).use { output ->
-                output.write(csv.toByteArray())
+            val file = File(downloadsDir, filename)
+            try {
+                FileOutputStream(file).use { output ->
+                    output.write(csv.toByteArray())
+                }
+                Timber.i("Saved to downloads (legacy)")
+            } catch (e: IOException) {
+                e.printStackTrace()
+                Timber.e("Error saving file (legacy)")
+            } finally {
+                _isSaving.value = false
             }
-            Timber.i("Saved to downloads (legacy)")
-        } catch (e: IOException) {
-            e.printStackTrace()
-            Timber.e("Error saving file (legacy)")
         }
     }
 }
