@@ -13,6 +13,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import net.openid.appauth.AppAuthConfiguration
 import net.openid.appauth.AuthState
 import net.openid.appauth.AuthorizationException
@@ -184,21 +186,33 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun getUserInfo(): UserInfo? {
-        val json = fetchUserInfo()
-        return json?.let {
-            val info = UserInfo(
-                userId = json.getString("sub"),
-                className = json.optString("custom:class_name", null),
-                groupName = json.optString("custom:group_name", null),
-                schoolName = json.optString("custom:school_name", null),
-                email = json.optString("email", null),
-                familyName = json.getString("family_name"),
-                givenName = json.getString("given_name"),
-                nickname = json.getString("nickname")
-            )
-            saveUserInfo(info)
-            info
-        } ?: loadUserInfoFromDataStore()
+        return try {
+            val json = withTimeout(30_000L) { // 30 seconds timeout
+                fetchUserInfo()
+            }
+
+            json?.let {
+                val info = UserInfo(
+                    userId = json.getString("sub"),
+                    className = json.optString("custom:class_name", null),
+                    groupName = json.optString("custom:group_name", null),
+                    schoolName = json.optString("custom:school_name", null),
+                    email = json.optString("email", null),
+                    familyName = json.getString("family_name"),
+                    givenName = json.getString("given_name"),
+                    nickname = json.getString("nickname")
+                )
+                saveUserInfo(info)
+                info
+            } ?: loadUserInfoFromDataStore()
+
+        } catch (e: TimeoutCancellationException) {
+            Timber.w("UserInfo fetch timed out, falling back to local cache")
+            loadUserInfoFromDataStore()
+        } catch (e: Exception) {
+            Timber.e(e, "Error fetching user info, falling back to local cache")
+            loadUserInfoFromDataStore()
+        }
     }
 
     override suspend fun updateUserInfo(
